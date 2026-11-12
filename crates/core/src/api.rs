@@ -3,7 +3,7 @@
 
 use std::collections::HashMap;
 use std::net::SocketAddr;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 
@@ -14,6 +14,7 @@ use serde_json::Value;
 use tokio::io::AsyncWriteExt;
 use tokio::sync::Mutex;
 
+use crate::CorePaths;
 use crate::cache::{Cache, CachedAudio};
 
 pub const UA: &str = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36";
@@ -26,7 +27,7 @@ const MIXIN_KEY_ENC_TAB: [usize; 64] = [
     54, 21, 56, 59, 6, 63, 57, 62, 11, 36, 20, 34, 44, 52,
 ];
 
-const CONFIG_DIR_NAME: &str = "bili-music";
+pub const CONFIG_DIR_NAME: &str = "bili-music";
 const COOKIE_FILE_NAME: &str = "cookie";
 const SYNC_FOLDER_FILE_NAME: &str = "sync_folder";
 const DEFAULT_SYNC_FOLDER_TITLE: &str = "bili-music 云同步";
@@ -234,6 +235,7 @@ pub enum QrPhase {
 }
 
 pub struct ApiClient {
+    paths: CorePaths,
     http: reqwest::Client,
     resolver: Arc<Ipv4FirstResolver>,
     cache: Cache,
@@ -244,12 +246,12 @@ pub struct ApiClient {
 }
 
 impl ApiClient {
-    pub fn new() -> Result<Self> {
+    pub fn new(paths: CorePaths) -> Result<Self> {
         let cookie = std::env::var("BILI_COOKIE")
             .ok()
             .map(|value| value.trim().to_string())
             .filter(|value| !value.is_empty())
-            .or_else(load_saved_cookie);
+            .or_else(|| load_saved_cookie(&paths.data_dir));
 
         let resolver = Arc::new(Ipv4FirstResolver::new());
         let http = reqwest::Client::builder()
@@ -258,14 +260,18 @@ impl ApiClient {
             .build()
             .context("创建 HTTP 客户端失败")?;
 
+        let cache_mb = paths.cache_mb;
+        let cache_dir = paths.cache_dir.clone();
+        let data_dir = paths.data_dir.clone();
         Ok(Self {
             http,
             resolver,
-            cache: Cache::new(),
+            paths,
+            cache: Cache::new(cache_dir, cache_mb),
             keys: Mutex::new(None),
             buvid: Mutex::new(None),
             cookie: Mutex::new(cookie.clone()),
-            sync_folder: Mutex::new(load_sync_folder_id()),
+            sync_folder: Mutex::new(load_sync_folder_id(&data_dir)),
         })
     }
 
@@ -287,7 +293,7 @@ impl ApiClient {
 
     pub async fn set_cookie(&self, cookie: String) {
         *self.cookie.lock().await = Some(cookie.clone());
-        let _ = save_cookie(&cookie);
+        let _ = save_cookie(&self.paths.data_dir, &cookie);
     }
 
     pub async fn user_info(&self) -> Result<Option<UserInfo>> {
@@ -899,12 +905,12 @@ impl ApiClient {
 
     async fn remember_sync_folder(&self, id: i64) {
         *self.sync_folder.lock().await = Some(id);
-        let _ = save_sync_folder_id(id);
+        let _ = save_sync_folder_id(&self.paths.data_dir, id);
     }
 
     async fn forget_sync_folder(&self) {
         *self.sync_folder.lock().await = None;
-        let _ = std::fs::remove_file(sync_folder_path());
+        let _ = std::fs::remove_file(sync_folder_path(&self.paths.data_dir));
     }
 
     async fn csrf_token(&self) -> Result<String> {
@@ -1408,20 +1414,12 @@ fn snippet(body: &str) -> String {
     }
 }
 
-fn config_dir() -> PathBuf {
-    let base = std::env::var_os("XDG_CONFIG_HOME")
-        .map(PathBuf::from)
-        .or_else(|| std::env::var_os("HOME").map(|home| PathBuf::from(home).join(".config")))
-        .unwrap_or_else(|| PathBuf::from("."));
-    base.join(CONFIG_DIR_NAME)
+fn cookie_path(data_dir: &Path) -> PathBuf {
+    data_dir.join(COOKIE_FILE_NAME)
 }
 
-fn cookie_path() -> PathBuf {
-    config_dir().join(COOKIE_FILE_NAME)
-}
-
-fn sync_folder_path() -> PathBuf {
-    config_dir().join(SYNC_FOLDER_FILE_NAME)
+fn sync_folder_path(data_dir: &Path) -> PathBuf {
+    data_dir.join(SYNC_FOLDER_FILE_NAME)
 }
 
 fn sync_folder_title() -> String {
@@ -1432,26 +1430,26 @@ fn sync_folder_title() -> String {
         .unwrap_or_else(|| DEFAULT_SYNC_FOLDER_TITLE.to_string())
 }
 
-fn load_sync_folder_id() -> Option<i64> {
-    std::fs::read_to_string(sync_folder_path())
+fn load_sync_folder_id(data_dir: &Path) -> Option<i64> {
+    std::fs::read_to_string(sync_folder_path(data_dir))
         .ok()
         .and_then(|value| value.trim().parse::<i64>().ok())
 }
 
-fn save_sync_folder_id(id: i64) -> Result<()> {
-    std::fs::create_dir_all(config_dir()).context("创建配置目录失败")?;
-    std::fs::write(sync_folder_path(), id.to_string()).context("写入云同步收藏夹 id 失败")
+fn save_sync_folder_id(data_dir: &Path, id: i64) -> Result<()> {
+    std::fs::create_dir_all(data_dir).context("创建配置目录失败")?;
+    std::fs::write(sync_folder_path(data_dir), id.to_string()).context("写入云同步收藏夹 id 失败")
 }
 
-fn load_saved_cookie() -> Option<String> {
-    std::fs::read_to_string(cookie_path())
+fn load_saved_cookie(data_dir: &Path) -> Option<String> {
+    std::fs::read_to_string(cookie_path(data_dir))
         .ok()
         .map(|value| value.trim().to_string())
         .filter(|value| !value.is_empty())
 }
 
-fn save_cookie(cookie: &str) -> Result<()> {
-    let path = cookie_path();
+fn save_cookie(data_dir: &Path, cookie: &str) -> Result<()> {
+    let path = cookie_path(data_dir);
     if let Some(parent) = path.parent() {
         std::fs::create_dir_all(parent).context("创建配置目录失败")?;
     }

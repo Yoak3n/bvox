@@ -11,8 +11,9 @@ use ratatui_image::{Resize, StatefulImage};
 use unicode_width::UnicodeWidthStr;
 
 use bili_core::api::format_secs;
-use crate::app::{App, FavoritesModal, InputMode, LoginModal};
+use bili_core::app::{App, FavoritesModal, InputMode, LoginModal};
 use crate::cover::Cover;
+use crate::tui_app::TuiState;
 
 #[derive(Clone, Copy, PartialEq, Eq)]
 enum CoverLayout {
@@ -20,9 +21,9 @@ enum CoverLayout {
     Large,
 }
 
-pub fn draw(frame: &mut Frame, app: &mut App) {
+pub fn draw(frame: &mut Frame, app: &App, tui: &mut TuiState) {
     let area = frame.area();
-    let has_cover = app.cover_protocol.is_some() || app.cover.is_some();
+    let has_cover = tui.cover_protocol.is_some() || tui.cover.is_some();
     let cover_layout = if has_cover && area.width >= 112 && area.height >= 32 {
         Some(CoverLayout::Large)
     } else if has_cover && area.width >= 96 && area.height >= 28 {
@@ -47,9 +48,9 @@ pub fn draw(frame: &mut Frame, app: &mut App) {
     if app.show_lyrics {
         draw_lyrics(frame, app, chunks[1]);
     } else {
-        draw_results(frame, app, chunks[1]);
+        draw_results(frame, app, tui, chunks[1]);
     }
-    draw_player(frame, app, chunks[2], cover_layout);
+    draw_player(frame, app, tui, chunks[2], cover_layout);
     draw_footer(frame, app, chunks[3]);
 
     if let Some(login) = &app.login {
@@ -89,7 +90,7 @@ fn draw_header(frame: &mut Frame, app: &App, area: Rect) {
     frame.render_widget(Paragraph::new(Line::from(spans)), area);
 }
 
-fn draw_results(frame: &mut Frame, app: &mut App, area: Rect) {
+fn draw_results(frame: &mut Frame, app: &App, tui: &mut TuiState, area: Rect) {
     let rows = app
         .results
         .iter()
@@ -142,7 +143,7 @@ fn draw_results(frame: &mut Frame, app: &mut App, area: Rect) {
     )
     .highlight_symbol(" ");
 
-    frame.render_stateful_widget(table, area, &mut app.table_state);
+    frame.render_stateful_widget(table, area, &mut tui.table_state);
 }
 
 fn draw_lyrics(frame: &mut Frame, app: &App, area: Rect) {
@@ -196,7 +197,7 @@ fn draw_lyrics(frame: &mut Frame, app: &App, area: Rect) {
     frame.render_widget(Paragraph::new(lines).alignment(Alignment::Center), inner);
 }
 
-fn draw_player(frame: &mut Frame, app: &mut App, area: Rect, cover_layout: Option<CoverLayout>) {
+fn draw_player(frame: &mut Frame, app: &App, tui: &mut TuiState, area: Rect, cover_layout: Option<CoverLayout>) {
     let block = Block::bordered().title(" 正在播放 ");
     let inner = block.inner(area);
     frame.render_widget(block, area);
@@ -208,11 +209,11 @@ fn draw_player(frame: &mut Frame, app: &mut App, area: Rect, cover_layout: Optio
         };
         let columns =
             Layout::horizontal([Constraint::Length(cover_width), Constraint::Min(20)]).split(inner);
-        if let Some(protocol) = &mut app.cover_protocol {
+        if let Some(protocol) = &mut tui.cover_protocol {
             let image = StatefulImage::<StatefulProtocol>::new()
                 .resize(Resize::Fit(Some(FilterType::Lanczos3)));
             frame.render_stateful_widget(image, columns[0], protocol);
-        } else if let Some(set) = &app.cover {
+        } else if let Some(set) = &tui.cover {
             let cover = match layout {
                 CoverLayout::Large => &set.large,
                 CoverLayout::Small => &set.small,

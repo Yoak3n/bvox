@@ -1,6 +1,7 @@
 //! On-disk cache for audio streams, covers, lyrics and video metadata.
 //!
-//! Layout under `$XDG_CACHE_HOME/bili-music` (override with `BILI_CACHE_DIR`):
+//! The frontend picks the root via `CorePaths` (XDG cache dir on desktop,
+//! per-app cache on Android). Layout:
 //!
 //! ```text
 //! audio/<bvid>_<cid>_<quality_id>_<bandwidth>.m4s
@@ -10,9 +11,9 @@
 //! ```
 //!
 //! Audio is written to a `.part` file and renamed into place, so a truncated
-//! download never looks like a cache hit. The whole cache is bounded by
-//! `BILI_CACHE_MB` (default 1 GiB); eviction drops the least recently used
-//! files. `BILI_CACHE_MB=0` disables the cache entirely.
+//! download never looks like a cache hit. The whole cache is bounded by the
+//! configured limit (default 1 GiB); eviction drops the least recently used
+//! files. A limit of 0 disables the cache entirely.
 
 use std::collections::HashSet;
 use std::path::{Path, PathBuf};
@@ -24,8 +25,8 @@ use serde::{Deserialize, Serialize};
 
 use crate::api::{LyricLine, VideoDetail};
 
-const CACHE_DIR_NAME: &str = "bili-music";
-const DEFAULT_LIMIT_MB: u64 = 1024;
+pub const CACHE_DIR_NAME: &str = "bili-music";
+pub const DEFAULT_LIMIT_MB: u64 = 1024;
 const VIEW_TTL: Duration = Duration::from_secs(24 * 60 * 60);
 const STALE_PART_AGE: Duration = Duration::from_secs(24 * 60 * 60);
 
@@ -51,10 +52,10 @@ pub struct Cache {
 }
 
 impl Cache {
-    pub fn new() -> Self {
-        let limit_bytes = cache_limit_bytes();
+    pub fn new(root: PathBuf, limit_mb: u64) -> Self {
+        let limit_bytes = limit_mb.saturating_mul(1024 * 1024);
         let cache = Self {
-            root: cache_root(),
+            root,
             limit_bytes,
             enabled: limit_bytes > 0,
             inflight: Mutex::new(HashSet::new()),
@@ -337,12 +338,6 @@ impl Cache {
     }
 }
 
-impl Default for Cache {
-    fn default() -> Self {
-        Self::new()
-    }
-}
-
 struct CacheFile {
     path: PathBuf,
     size: u64,
@@ -415,30 +410,6 @@ fn write_atomic(path: &Path, bytes: &[u8]) -> Result<()> {
     let tmp = path.with_extension(format!("tmp.{}.{suffix}", std::process::id()));
     std::fs::write(&tmp, bytes).context("写入缓存临时文件失败")?;
     std::fs::rename(&tmp, path).context("提交缓存文件失败")
-}
-
-fn cache_root() -> PathBuf {
-    if let Some(dir) = std::env::var_os("BILI_CACHE_DIR")
-        .map(PathBuf::from)
-        .filter(|path| !path.as_os_str().is_empty())
-    {
-        return dir;
-    }
-
-    let base = std::env::var_os("XDG_CACHE_HOME")
-        .map(PathBuf::from)
-        .filter(|path| path.is_absolute())
-        .or_else(|| std::env::var_os("HOME").map(|home| PathBuf::from(home).join(".cache")))
-        .unwrap_or_else(std::env::temp_dir);
-    base.join(CACHE_DIR_NAME)
-}
-
-fn cache_limit_bytes() -> u64 {
-    let mb = std::env::var("BILI_CACHE_MB")
-        .ok()
-        .and_then(|value| value.trim().parse::<u64>().ok())
-        .unwrap_or(DEFAULT_LIMIT_MB);
-    mb.saturating_mul(1024 * 1024)
 }
 
 #[cfg(test)]

@@ -5,28 +5,21 @@
 
 use std::path::PathBuf;
 use std::process::Stdio;
+use std::sync::Arc;
 use std::time::Duration;
 
 use anyhow::{Context, Result, bail};
+use async_trait::async_trait;
 use serde_json::{Value, json};
 use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader};
 use tokio::net::UnixStream;
 use tokio::net::unix::{OwnedReadHalf, OwnedWriteHalf};
 use tokio::process::{Child, Command};
+use tokio::sync::{Mutex, watch};
 use tokio::time::timeout;
 
-use bili_core::api::REFERER;
-use bili_core::api::UA;
-
-#[derive(Clone, Debug, Default)]
-pub struct PlayerState {
-    pub position: f64,
-    pub duration: f64,
-    pub paused: bool,
-    pub volume: f64,
-    pub eof: bool,
-    pub idle: bool,
-}
+use bili_core::api::{REFERER, UA};
+use bili_core::player::{Player, PlayerConfig, PlayerState};
 
 pub struct Mpv {
     child: Option<Child>,
@@ -34,6 +27,8 @@ pub struct Mpv {
     writer: Option<OwnedWriteHalf>,
     socket: PathBuf,
     request_id: u64,
+    /// Stream hints for the next (or current) load; used when spawning mpv.
+    config: PlayerConfig,
 }
 
 impl Mpv {
@@ -46,6 +41,10 @@ impl Mpv {
             writer: None,
             socket,
             request_id: 0,
+            config: PlayerConfig {
+                user_agent: UA.to_string(),
+                referer: REFERER.to_string(),
+            },
         }
     }
 
@@ -53,7 +52,8 @@ impl Mpv {
         self.child.is_some()
     }
 
-    pub async fn load(&mut self, url: &str) -> Result<()> {
+    pub async fn load(&mut self, url: &str, config: &PlayerConfig) -> Result<()> {
+        self.config = config.clone();
         match self.try_load(url).await {
             Ok(()) => Ok(()),
             Err(first_error) => {
@@ -158,8 +158,8 @@ impl Mpv {
             .arg("--no-terminal")
             .arg("--really-quiet")
             .arg("--keep-open=no")
-            .arg(format!("--referrer={REFERER}"))
-            .arg(format!("--user-agent={UA}"))
+            .arg(format!("--referrer={}", self.config.referer))
+            .arg(format!("--user-agent={}", self.config.user_agent))
             .arg("--cache=yes")
             .arg("--cache-pause=yes")
             .arg(format!("--input-ipc-server={}", self.socket.display()))
@@ -309,5 +309,76 @@ impl Default for Mpv {
 impl Drop for Mpv {
     fn drop(&mut self) {
         self.reset();
+    }
+}
+
+/// `Player` implementation over the mpv IPC layer.
+///
+/// Commands are serialized through an inner mutex; state snapshots are pushed
+/// to a `watch` channel every 500 ms so `bili_core::session::Session` sees the
+/// same event stream an ExoPlayer-backed player would produce.
+pub struct MpvPlayer {
+    inner: Mutex<Mpv>,
+    state_tx: watch::Sender<PlayerState>,
+}
+
+impl MpvPlayer {
+    pub fn new() -> Arc<Self> {
+        let (state_tx, _) = watch::channel(PlayerState::default());
+        let player = Arc::new(Self {
+            inner: Mutex::new(Mpv::new()),
+            state_tx,
+        });
+
+        // Poll mpv for property snapshots. Holds a weak reference so the task
+        // ends once the player is dropped.
+        let weak = Arc::downgrade(&player);
+        tokio::spawn(async move {
+            let mut interval = tokio::time::interval(Duration::from_millis(500));
+            interval.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Skip);
+            loop {
+                interval.tick().await;
+                let Some(player) = weak.upgrade() else {
+                    break;
+                };
+                let state = player.inner.lock().await.poll_state().await;
+                if let Ok(Some(state)) = state {
+                    player.state_tx.send_replace(state);
+                }
+            }
+        });
+
+        player
+    }
+}
+
+#[async_trait]
+impl Player for MpvPlayer {
+    async fn is_started(&self) -> bool {
+        self.inner.lock().await.is_started()
+    }
+
+    async fn load(&self, target: &str, config: &PlayerConfig) -> Result<()> {
+        self.inner.lock().await.load(target, config).await
+    }
+
+    async fn toggle_pause(&self) -> Result<bool> {
+        self.inner.lock().await.toggle_pause().await
+    }
+
+    async fn seek(&self, seconds: f64) -> Result<()> {
+        self.inner.lock().await.seek(seconds).await
+    }
+
+    async fn set_volume(&self, volume: f64) -> Result<()> {
+        self.inner.lock().await.set_volume(volume).await
+    }
+
+    async fn quit(&self) {
+        self.inner.lock().await.quit().await;
+    }
+
+    fn watch(&self) -> watch::Receiver<PlayerState> {
+        self.state_tx.subscribe()
     }
 }

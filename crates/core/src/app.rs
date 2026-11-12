@@ -1,16 +1,16 @@
-use std::sync::Arc;
+//! UI-agnostic session state.
+//!
+//! `App` holds every piece of state a frontend renders: search results,
+//! playback progress, login and favorites modals, lyrics. Frontends mutate it
+//! through [`Session`](crate::session::Session) commands and read it back for
+//! drawing; the field set is deliberately plain data so it maps onto Compose
+//! state as easily as onto a ratatui frame.
 
-use image::DynamicImage;
 use qrcode::types::Color as QrColor;
 use qrcode::{EcLevel, QrCode};
-use ratatui::crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
-use ratatui::widgets::TableState;
-use ratatui_image::picker::{Picker, ProtocolType};
-use ratatui_image::protocol::StatefulProtocol;
 
-use bili_core::api::{FavoriteFolder, LyricLine, UserInfo, VideoItem};
-use crate::cover::CoverSet;
-use crate::mpv::PlayerState;
+use crate::api::{FavoriteFolder, LyricLine, UserInfo, VideoItem};
+use crate::player::PlayerState;
 
 pub struct PlayRequest {
     pub item: VideoItem,
@@ -43,21 +43,6 @@ pub struct BvImport {
     pub sync_error: bool,
 }
 
-pub enum Action {
-    None,
-    Quit,
-    Search(String),
-    ImportBv(String),
-    SyncPull,
-    Play(PlayRequest),
-    Pause,
-    Seek(f64),
-    Volume(f64),
-    Login(u64),
-    Favorites,
-    ImportFolder(FavoriteFolder),
-}
-
 pub struct LoginModal {
     pub qr: Vec<Vec<bool>>,
     pub status: String,
@@ -77,7 +62,6 @@ pub struct App {
     pub results_title: String,
     pub selected: Option<usize>,
     pub current: Option<usize>,
-    pub table_state: TableState,
     pub status: String,
     pub error: bool,
     pub loading: bool,
@@ -104,18 +88,15 @@ pub struct App {
     pub lyrics: Vec<LyricLine>,
     pub lyrics_key: String,
     pub lyrics_status: String,
-    pub cover: Option<CoverSet>,
-    pub cover_protocol: Option<StatefulProtocol>,
     pub cover_key: String,
     /// `bvid#cid#page` of the current track, used to route cache progress.
     pub playback_key: String,
     pub cache_progress: Option<(u64, Option<u64>)>,
     pub cached_now: bool,
-    pub picker: Option<Arc<Picker>>,
 }
 
 impl App {
-    pub fn new(picker: Option<Arc<Picker>>) -> Self {
+    pub fn new() -> Self {
         Self {
             input: String::new(),
             input_mode: InputMode::None,
@@ -123,7 +104,6 @@ impl App {
             results_title: "搜索结果".to_string(),
             selected: None,
             current: None,
-            table_state: TableState::default(),
             status: "按 / 搜索，b 导入 BV，g 登录，f 收藏夹，y 云同步".to_string(),
             error: false,
             loading: false,
@@ -150,224 +130,10 @@ impl App {
             lyrics: Vec::new(),
             lyrics_key: String::new(),
             lyrics_status: String::new(),
-            cover: None,
-            cover_protocol: None,
             cover_key: String::new(),
             playback_key: String::new(),
             cache_progress: None,
             cached_now: false,
-            picker,
-        }
-    }
-
-    pub fn handle_key(&mut self, key: KeyEvent) -> Action {
-        if key.code == KeyCode::Char('c') && key.modifiers.contains(KeyModifiers::CONTROL) {
-            return Action::Quit;
-        }
-
-        if self.login.is_some() {
-            return self.handle_login_key(key);
-        }
-        if self.favorites.is_some() {
-            return self.handle_favorites_key(key);
-        }
-        if self.input_mode != InputMode::None {
-            return self.handle_input_key(key);
-        }
-
-        match key.code {
-            KeyCode::Char('q') => Action::Quit,
-            KeyCode::Char('/') | KeyCode::Char('s') => {
-                self.input_mode = InputMode::Search;
-                self.input.clear();
-                self.set_status("输入关键词，Enter 搜索，Esc 取消", false);
-                Action::None
-            }
-            KeyCode::Char('b') => {
-                self.input_mode = InputMode::Bv;
-                self.input.clear();
-                self.set_status("输入 BV 号或视频链接，Enter 导入", false);
-                Action::None
-            }
-            KeyCode::Char('y') => Action::SyncPull,
-            KeyCode::Char('g') => Action::Login(self.open_login()),
-            KeyCode::Char('f') => Action::Favorites,
-            KeyCode::Char('l') => {
-                if self.now_playing.is_none() {
-                    self.set_status("还没有播放内容", true);
-                } else {
-                    self.show_lyrics = !self.show_lyrics;
-                }
-                Action::None
-            }
-            KeyCode::Up | KeyCode::Char('k') => {
-                self.move_selection(-1);
-                Action::None
-            }
-            KeyCode::Down | KeyCode::Char('j') => {
-                self.move_selection(1);
-                Action::None
-            }
-            KeyCode::Enter => {
-                if self.pending_play {
-                    return Action::None;
-                }
-                self.play_selected()
-                    .map(Action::Play)
-                    .unwrap_or(Action::None)
-            }
-            KeyCode::Char(' ') => {
-                if !self.has_media {
-                    return Action::None;
-                }
-                self.paused = !self.paused;
-                Action::Pause
-            }
-            KeyCode::Char('n') => {
-                if self.pending_play {
-                    return Action::None;
-                }
-                self.step(1).map(Action::Play).unwrap_or(Action::None)
-            }
-            KeyCode::Char('p') => {
-                if self.pending_play {
-                    return Action::None;
-                }
-                self.step(-1).map(Action::Play).unwrap_or(Action::None)
-            }
-            KeyCode::Left => {
-                if !self.has_media {
-                    return Action::None;
-                }
-                self.position = (self.position - 5.0).max(0.0);
-                Action::Seek(-5.0)
-            }
-            KeyCode::Right => {
-                if !self.has_media {
-                    return Action::None;
-                }
-                self.position += 5.0;
-                Action::Seek(5.0)
-            }
-            KeyCode::Char('+') | KeyCode::Char('=') => {
-                self.volume = (self.volume + 5.0).min(150.0);
-                Action::Volume(self.volume)
-            }
-            KeyCode::Char('-') => {
-                self.volume = (self.volume - 5.0).max(0.0);
-                Action::Volume(self.volume)
-            }
-            KeyCode::Char('r') => {
-                if self.pending_play {
-                    return Action::None;
-                }
-                let item = self.now_playing.clone().or_else(|| {
-                    self.current
-                        .and_then(|index| self.results.get(index))
-                        .cloned()
-                });
-                if let Some(item) = item {
-                    self.pending_play = true;
-                    self.set_status("重新获取播放地址…", false);
-                    Action::Play(PlayRequest {
-                        item,
-                        page_index: self.page,
-                    })
-                } else {
-                    Action::None
-                }
-            }
-            _ => Action::None,
-        }
-    }
-
-    fn handle_login_key(&mut self, key: KeyEvent) -> Action {
-        match key.code {
-            KeyCode::Esc => {
-                self.login_seq += 1; // invalidate the polling task
-                self.login = None;
-                self.set_status("已取消登录", false);
-                Action::None
-            }
-            KeyCode::Char('r') => Action::Login(self.open_login()),
-            _ => Action::None,
-        }
-    }
-
-    fn handle_favorites_key(&mut self, key: KeyEvent) -> Action {
-        match key.code {
-            KeyCode::Esc => {
-                self.favorites = None;
-                self.set_status("已关闭收藏夹", false);
-                Action::None
-            }
-            KeyCode::Up | KeyCode::Char('k') => {
-                self.move_favorite(-1);
-                Action::None
-            }
-            KeyCode::Down | KeyCode::Char('j') => {
-                self.move_favorite(1);
-                Action::None
-            }
-            KeyCode::Enter => {
-                let Some(modal) = &self.favorites else {
-                    return Action::None;
-                };
-                if modal.loading {
-                    return Action::None;
-                }
-                let Some(folder) = modal.folders.get(modal.selected.unwrap_or(0)).cloned() else {
-                    return Action::None;
-                };
-                if let Some(modal) = &mut self.favorites {
-                    modal.loading = true;
-                    modal.status = format!("正在导入「{}」…", folder.title);
-                }
-                self.set_status("正在导入收藏夹…", false);
-                Action::ImportFolder(folder)
-            }
-            _ => Action::None,
-        }
-    }
-
-    fn handle_input_key(&mut self, key: KeyEvent) -> Action {
-        let mode = self.input_mode;
-        match key.code {
-            KeyCode::Enter => {
-                let text = self.input.trim().to_string();
-                if text.is_empty() {
-                    self.set_status("请输入内容", true);
-                    return Action::None;
-                }
-                self.input_mode = InputMode::None;
-                match mode {
-                    InputMode::Search => {
-                        self.loading = true;
-                        self.search_seq += 1;
-                        self.set_status("搜索中…", false);
-                        Action::Search(text)
-                    }
-                    InputMode::Bv => {
-                        self.set_status("正在导入 BV…", false);
-                        Action::ImportBv(text)
-                    }
-                    InputMode::None => Action::None,
-                }
-            }
-            KeyCode::Esc => {
-                self.input_mode = InputMode::None;
-                self.set_status("已取消", false);
-                Action::None
-            }
-            KeyCode::Backspace => {
-                self.input.pop();
-                Action::None
-            }
-            KeyCode::Char(character) if !key.modifiers.contains(KeyModifiers::CONTROL) => {
-                self.input.push(character);
-                Action::None
-            }
-            _ => Action::None,
         }
     }
 
@@ -601,8 +367,6 @@ impl App {
         self.playback_key = key;
         self.cache_progress = None;
         self.cached_now = info.cached;
-        self.cover = None;
-        self.cover_protocol = None;
 
         let page_info = if info.page_count > 1 {
             format!("P{}/{} · ", info.page_index + 1, info.page_count)
@@ -616,31 +380,6 @@ impl App {
         self.pending_play = false;
         self.has_media = false;
         self.set_status(&format!("播放失败: {error}"), true);
-    }
-
-    pub fn on_cover_image(&mut self, key: String, result: Result<DynamicImage, String>) {
-        if key != self.cover_key {
-            return;
-        }
-        self.cover = None;
-        self.cover_protocol = None;
-
-        let Ok(image) = result else {
-            return;
-        };
-
-        if let Some(picker) = &self.picker
-            && picker.protocol_type() != ProtocolType::Halfblocks
-        {
-            self.cover_protocol = Some(picker.new_resize_protocol(image));
-            return;
-        }
-
-        let small = crate::cover::from_dynamic(&image, 56, 32);
-        let large = crate::cover::from_dynamic(&image, 80, 46);
-        if let (Ok(small), Ok(large)) = (small, large) {
-            self.cover = Some(CoverSet { small, large });
-        }
     }
 
     pub fn on_lyrics(&mut self, key: String, result: Result<Vec<LyricLine>, String>) {
@@ -799,7 +538,7 @@ impl App {
         self.lyrics.get(index).map(|line| line.text.as_str())
     }
 
-    fn play_selected(&mut self) -> Option<PlayRequest> {
+    pub fn play_selected(&mut self) -> Option<PlayRequest> {
         let index = self.selected?;
         let item = self.results.get(index)?.clone();
         self.current = Some(index);
@@ -814,23 +553,7 @@ impl App {
         })
     }
 
-    fn replace_results(&mut self, items: Vec<VideoItem>, title: &str) {
-        let empty = items.is_empty();
-        self.results = items;
-        self.results_title = title.to_string();
-        self.current = None;
-        self.page = 0;
-        self.page_count = 0;
-        self.part.clear();
-        if empty {
-            self.selected = None;
-            self.table_state.select(None);
-        } else {
-            self.select(0);
-        }
-    }
-
-    fn move_selection(&mut self, delta: isize) {
+    pub fn move_selection(&mut self, delta: isize) {
         if self.results.is_empty() {
             return;
         }
@@ -839,7 +562,7 @@ impl App {
         self.select(next);
     }
 
-    fn move_favorite(&mut self, delta: isize) {
+    pub fn move_favorite(&mut self, delta: isize) {
         let Some(modal) = &mut self.favorites else {
             return;
         };
@@ -851,15 +574,29 @@ impl App {
         modal.selected = Some(next);
     }
 
+    fn replace_results(&mut self, items: Vec<VideoItem>, title: &str) {
+        let empty = items.is_empty();
+        self.results = items;
+        self.results_title = title.to_string();
+        self.current = None;
+        self.page = 0;
+        self.page_count = 0;
+        self.part.clear();
+        if empty {
+            self.selected = None;
+        } else {
+            self.select(0);
+        }
+    }
+
     fn select(&mut self, index: usize) {
         self.selected = Some(index);
-        self.table_state.select(Some(index));
     }
 }
 
 impl Default for App {
     fn default() -> Self {
-        Self::new(None)
+        Self::new()
     }
 }
 
