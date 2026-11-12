@@ -251,6 +251,11 @@ impl Session {
         }
     }
 
+    /// Close the favorites modal without importing.
+    pub fn close_favorites(&mut self) {
+        self.app.favorites = None;
+    }
+
     /// Stop playback entirely.
     pub async fn stop(&mut self) {
         self.player.quit().await;

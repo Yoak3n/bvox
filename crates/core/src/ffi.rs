@@ -312,7 +312,11 @@ impl Core {
     }
 
     pub fn cancel_login(&self) {
-        self.run(move |session| async move { session.lock().await.cancel_login() });
+        self.run(|session| async move { session.lock().await.cancel_login() });
+    }
+
+    pub fn close_favorites(&self) {
+        self.run(|session| async move { session.lock().await.close_favorites() });
     }
 
     pub fn open_favorites(&self) {

@@ -2,7 +2,10 @@ package dev.yoa.bilimusic
 
 import android.content.ComponentName
 import android.content.Context
+import android.graphics.BitmapFactory
 import android.util.Log
+import androidx.compose.ui.graphics.ImageBitmap
+import androidx.compose.ui.graphics.asImageBitmap
 import androidx.media3.common.MediaItem
 import androidx.media3.session.MediaController
 import androidx.media3.session.SessionToken
@@ -16,6 +19,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import com.google.common.util.concurrent.MoreExecutors
 
 /** Observable UI state fed by the core's events. */
@@ -23,8 +27,8 @@ class AppModel {
     /** Latest `Core::snapshot`, refreshed on every StateChanged event. */
     val snapshot = MutableStateFlow<dev.yoa.bilimusic.core.Snapshot?>(null)
 
-    /** Cover bytes keyed by `bvid#cid#page`; UI correlates with snapshot.coverKey. */
-    val cover = MutableStateFlow<Pair<String, ByteArray>?>(null)
+    /** Decoded cover keyed by `bvid#cid#page`; UI correlates with snapshot.coverKey. */
+    val cover = MutableStateFlow<Pair<String, ImageBitmap?>?>(null)
 }
 
 /** Forwards ExoPlayer commands coming from the Rust core. */
@@ -110,7 +114,19 @@ class ObserverRelay(
                         model.snapshot.value = coreProvider().snapshot()
                     }
                     is CoreEvent.CoverReady -> {
-                        model.cover.value = event.key to event.bytes
+                        val bitmap = withContext(Dispatchers.Default) {
+                            try {
+                                BitmapFactory.decodeByteArray(
+                                    event.bytes,
+                                    0,
+                                    event.bytes.size,
+                                )?.asImageBitmap()
+                            } catch (error: Exception) {
+                                Log.e("BiliMusic", "封面解码失败", error)
+                                null
+                            }
+                        }
+                        model.cover.value = event.key to bitmap
                     }
                 }
             } catch (error: Exception) {

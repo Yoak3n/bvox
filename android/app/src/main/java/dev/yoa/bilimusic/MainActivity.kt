@@ -7,30 +7,10 @@ import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
-import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.lazy.rememberLazyListState
-import androidx.compose.material3.Button
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.Scaffold
-import androidx.compose.material3.Text
-import androidx.compose.runtime.Composable
-import androidx.compose.runtime.collectAsState
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
-import androidx.compose.ui.Modifier
-import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.lifecycleScope
+import dev.yoa.bilimusic.ui.BiliMusicApp
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
@@ -52,7 +32,7 @@ class MainActivity : ComponentActivity() {
 
         setContent {
             MaterialTheme {
-                SkeletonApp(model)
+                BiliMusicApp(model)
             }
         }
     }
@@ -92,97 +72,6 @@ class MainActivity : ComponentActivity() {
             ) {
                 notificationPermission.launch(Manifest.permission.POST_NOTIFICATIONS)
             }
-        }
-    }
-}
-
-/** Phase-3 skeleton UI: proves the pipeline; the full screens land in Phase 4. */
-@Composable
-fun SkeletonApp(model: AppModel) {
-    val snapshot by model.snapshot.collectAsState()
-
-    Scaffold { padding ->
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(padding)
-                .padding(16.dp),
-            verticalArrangement = Arrangement.spacedBy(8.dp),
-        ) {
-            Text(
-                text = snapshot?.status ?: "正在初始化核心…",
-                style = MaterialTheme.typography.bodyMedium,
-                color = if (snapshot?.error == true) MaterialTheme.colorScheme.error
-                else MaterialTheme.colorScheme.onSurface,
-            )
-            snapshot?.user?.let { user ->
-                Text("已登录：$user", style = MaterialTheme.typography.bodySmall)
-            }
-
-            Button(onClick = { CoreHolder.core.startLogin() }) {
-                Text("扫码登录")
-            }
-
-            SearchBar()
-
-            snapshot?.let { state ->
-                Text(state.queueTitle, style = MaterialTheme.typography.titleSmall)
-                LazyColumn(state = rememberLazyListState(), modifier = Modifier.fillMaxWidth()) {
-                    items(state.results.size) { index ->
-                        val item = state.results[index]
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(vertical = 4.dp),
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                        ) {
-                            Column(modifier = Modifier.weight(1f)) {
-                                Text(item.title, style = MaterialTheme.typography.bodyMedium)
-                                Text(
-                                    "${item.author} · ${item.duration}",
-                                    style = MaterialTheme.typography.bodySmall,
-                                )
-                            }
-                            Button(onClick = { CoreHolder.core.play(index.toUInt()) }) {
-                                Text("播放")
-                            }
-                        }
-                    }
-                }
-                if (state.hasMedia) {
-                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        Button(onClick = { CoreHolder.core.togglePause() }) {
-                            Text(if (state.paused) "播放" else "暂停")
-                        }
-                        Button(onClick = { CoreHolder.core.nextTrack() }) {
-                            Text("下一首")
-                        }
-                    }
-                }
-            }
-        }
-    }
-}
-
-@Composable
-private fun SearchBar() {
-    var keyword by remember { mutableStateOf("") }
-    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-        OutlinedTextField(
-            value = keyword,
-            onValueChange = { keyword = it },
-            modifier = Modifier.weight(1f),
-            singleLine = true,
-            label = { Text("搜索") },
-        )
-        Button(
-            onClick = {
-                if (keyword.isNotBlank()) {
-                    CoreHolder.core.search(keyword.trim())
-                }
-            },
-        ) {
-            Text("搜索")
         }
     }
 }
