@@ -1,0 +1,13 @@
+[package]
+name = "bili-core"
+version.workspace = true
+edition.workspace = true
+description = "Platform-agnostic Bilibili music library (API client, cache, session state)"
+
+[dependencies]
+anyhow.workspace = true
+md5 = "0.7"
+reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls"] }
+serde = { version = "1.0.229", features = ["derive"] }
+serde_json = "1.0.154"
+tokio.workspace = true

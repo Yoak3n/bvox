@@ -1,6 +1,4 @@
-mod api;
 mod app;
-mod cache;
 mod cover;
 mod mpv;
 mod ui;
@@ -18,7 +16,7 @@ use ratatui_image::picker::cap_parser::QueryStdioOptions;
 use tokio::sync::{Mutex, mpsc};
 use tokio::time::timeout;
 
-use api::{
+use bili_core::api::{
     ApiClient, AudioSource, AudioStream, FavoriteFolder, LyricLine, QrPhase, UserInfo, VideoDetail,
     VideoItem, VideoPage, format_secs, quality_label,
 };
@@ -185,8 +183,8 @@ async fn headless_play(input: &str) -> Result<()> {
     command
         .arg("--no-video")
         .arg("--force-window=no")
-        .arg(format!("--referrer={}", api::REFERER))
-        .arg(format!("--user-agent={}", api::UA))
+        .arg(format!("--referrer={}", bili_core::api::REFERER))
+        .arg(format!("--user-agent={}", bili_core::api::UA))
         .arg(source.target());
     mpv::harden_command(&mut command);
     let status = command

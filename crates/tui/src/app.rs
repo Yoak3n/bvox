@@ -8,7 +8,7 @@ use ratatui::widgets::TableState;
 use ratatui_image::picker::{Picker, ProtocolType};
 use ratatui_image::protocol::StatefulProtocol;
 
-use crate::api::{FavoriteFolder, LyricLine, UserInfo, VideoItem};
+use bili_core::api::{FavoriteFolder, LyricLine, UserInfo, VideoItem};
 use crate::cover::CoverSet;
 use crate::mpv::PlayerState;
 

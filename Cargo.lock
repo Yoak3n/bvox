@@ -91,18 +91,28 @@ dependencies = [
 ]
 
 [[package]]
+name = "bili-core"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "md5",
+ "reqwest",
+ "serde",
+ "serde_json",
+ "tokio",
+]
+
+[[package]]
 name = "bili-music-tui"
 version = "0.1.0"
 dependencies = [
  "anyhow",
+ "bili-core",
  "image",
  "libc",
- "md5",
  "qrcode",
  "ratatui",
  "ratatui-image",
- "reqwest",
- "serde",
  "serde_json",
  "tokio",
  "unicode-width",

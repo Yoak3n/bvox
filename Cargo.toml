@@ -1,26 +1,12 @@
-[package]
-name = "bili-music-tui"
+[workspace]
+members = ["crates/core", "crates/tui"]
+resolver = "3"
+
+[workspace.package]
 version = "0.1.0"
 edition = "2024"
-description = "Bilibili audio-only music player with a terminal UI"
 
-[[bin]]
-name = "bili-music"
-path = "src/main.rs"
-
-[dependencies]
+[workspace.dependencies]
 anyhow = "1.0.104"
-image = { version = "0.25.10", default-features = false, features = ["png", "jpeg"] }
-md5 = "0.7"
-qrcode = { version = "0.14.1", default-features = false }
-ratatui = "0.30.2"
-ratatui-image = { version = "12.0.0-rc.3", default-features = false, features = ["crossterm"] }
-reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls"] }
-serde = { version = "1.0.229", features = ["derive"] }
-serde_json = "1.0.154"
-tokio = { version = "1.54.1", features = ["macros", "rt-multi-thread", "process", "signal", "sync", "time", "net", "io-util", "fs"] }
-unicode-width = "0.2.3"
-
-# Only used for PR_SET_PDEATHSIG, so the player cannot outlive us on Linux.
-[target.'cfg(target_os = "linux")'.dependencies]
-libc = "0.2"
+tokio = { version = "1.54.1", features = ["macros", "rt-multi-thread", "sync", "time", "net", "io-util", "fs"] }
+bili-core = { path = "crates/core" }

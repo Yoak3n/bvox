@@ -15,8 +15,8 @@ use tokio::net::unix::{OwnedReadHalf, OwnedWriteHalf};
 use tokio::process::{Child, Command};
 use tokio::time::timeout;
 
-use crate::api::REFERER;
-use crate::api::UA;
+use bili_core::api::REFERER;
+use bili_core::api::UA;
 
 #[derive(Clone, Debug, Default)]
 pub struct PlayerState {

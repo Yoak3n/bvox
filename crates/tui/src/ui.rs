@@ -10,7 +10,7 @@ use ratatui_image::protocol::StatefulProtocol;
 use ratatui_image::{Resize, StatefulImage};
 use unicode_width::UnicodeWidthStr;
 
-use crate::api::format_secs;
+use bili_core::api::format_secs;
 use crate::app::{App, FavoritesModal, InputMode, LoginModal};
 use crate::cover::Cover;
 

@@ -16,8 +16,8 @@ use tokio::sync::Mutex;
 
 use crate::cache::{Cache, CachedAudio};
 
-pub(crate) const UA: &str = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36";
-pub(crate) const REFERER: &str = "https://www.bilibili.com/";
+pub const UA: &str = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36";
+pub const REFERER: &str = "https://www.bilibili.com/";
 
 /// Permutation table used to derive the WBI mixin key.
 const MIXIN_KEY_ENC_TAB: [usize; 64] = [
