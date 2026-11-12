@@ -5,3 +5,6 @@ android/.gradle/
 android/build/
 android/app/build/
 android/local.properties
+
+# ZCode session artifacts
+.zcode/
