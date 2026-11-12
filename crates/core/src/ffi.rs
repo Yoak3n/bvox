@@ -92,13 +92,13 @@ pub enum CoreEvent {
 
 #[derive(Debug, uniffi::Error)]
 pub enum CoreError {
-    Init { message: String },
+    Init { detail: String },
 }
 
 impl std::fmt::Display for CoreError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            Self::Init { message } => write!(f, "{message}"),
+            Self::Init { detail } => write!(f, "{detail}"),
         }
     }
 }
@@ -106,7 +106,7 @@ impl std::fmt::Display for CoreError {
 // ----- callback interfaces --------------------------------------------------
 
 /// Implemented in Kotlin; the core forwards playback commands to it.
-#[uniffi::export]
+#[uniffi::export(foreign)]
 pub trait PlayerBridge: Send + Sync {
     /// Start playing `url` (a remote stream URL or a local cached file path).
     /// Volume is on the 0-150 scale (100 = default).
@@ -122,7 +122,7 @@ pub trait PlayerBridge: Send + Sync {
 
 /// Implemented in Kotlin; receives session events. Called on tokio worker
 /// threads — dispatch back to the main thread inside the implementation.
-#[uniffi::export]
+#[uniffi::export(foreign)]
 pub trait CoreObserver: Send + Sync {
     fn on_event(&self, event: CoreEvent);
 }
@@ -186,6 +186,21 @@ impl Player for RemotePlayer {
     }
 }
 
+// ----- stream header constants ----------------------------------------------
+
+// media3 1.11 dropped per-item HTTP headers from RequestMetadata, so the
+// player factory needs the values up front. Expose them as free functions
+// (callable before any Core exists).
+#[uniffi::export]
+pub fn player_user_agent() -> String {
+    crate::api::UA.to_string()
+}
+
+#[uniffi::export]
+pub fn player_referer() -> String {
+    crate::api::REFERER.to_string()
+}
+
 // ----- the Core object ------------------------------------------------------
 
 #[derive(uniffi::Object)]
@@ -221,7 +236,7 @@ impl Core {
             .enable_all()
             .build()
             .map_err(|error| CoreError::Init {
-                message: format!("创建 tokio runtime 失败: {error}"),
+                detail: format!("创建 tokio runtime 失败: {error}"),
             })?;
 
         let paths = CorePaths {
@@ -230,7 +245,7 @@ impl Core {
             cache_mb: config.cache_mb as u64,
         };
         let api = Arc::new(ApiClient::new(paths).map_err(|error| CoreError::Init {
-            message: format!("{error:#}"),
+            detail: format!("{error:#}"),
         })?);
 
         let remote = RemotePlayer::new(player_bridge);
