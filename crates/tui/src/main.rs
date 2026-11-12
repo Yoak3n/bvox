@@ -16,7 +16,7 @@ use tokio::time::timeout;
 use bili_core::CorePaths;
 use bili_core::api::{ApiClient, REFERER, UA, VideoItem, quality_label};
 use bili_core::player::Player as _;
-use bili_core::session::{CoreEvent, Session, parse_bvid};
+use bili_core::session::{CoreEvent, Msg, Session, parse_bvid};
 use mpv::MpvPlayer;
 use tui_app::{Action, TuiState};
 
@@ -151,7 +151,7 @@ async fn headless_play(input: &str) -> Result<()> {
 async fn run_tui() -> Result<()> {
     let api = Arc::new(ApiClient::new(CorePaths::desktop_default())?);
     let player = MpvPlayer::new();
-    let mut session = Session::new(api, player.clone()).await;
+    let (mut session, mut msg_rx) = Session::new(api, player.clone()).await;
 
     // Must query stdin before the key reader starts consuming events. Keep the
     // timeout short: unsupported terminals otherwise delay startup by 2s.
@@ -178,7 +178,7 @@ async fn run_tui() -> Result<()> {
 
     let mut terminal = ratatui::try_init().context("初始化终端失败")?;
     let mut tui = TuiState::new(picker);
-    let result = tui_loop(&mut terminal, &mut session, &mut tui, &mut rx).await;
+    let result = tui_loop(&mut terminal, &mut session, &mut msg_rx, &mut tui, &mut rx).await;
     // Stop mpv before the runtime goes away; kill-on-drop is only the fallback.
     let _ = timeout(Duration::from_secs(2), player.quit()).await;
     ratatui::restore();
@@ -188,6 +188,7 @@ async fn run_tui() -> Result<()> {
 async fn tui_loop(
     terminal: &mut ratatui::DefaultTerminal,
     session: &mut Session,
+    msg_rx: &mut mpsc::UnboundedReceiver<Msg>,
     tui: &mut TuiState,
     rx: &mut mpsc::UnboundedReceiver<TuiEvent>,
 ) -> Result<()> {
@@ -215,10 +216,13 @@ async fn tui_loop(
                 Some(TuiEvent::Wake) => {}
                 None => break,
             },
-            event = session.pump() => match event {
-                CoreEvent::StateChanged => {}
-                CoreEvent::CoverReady { key, bytes } => tui.apply_cover(&key, &bytes),
-                CoreEvent::Closed => break,
+            msg = msg_rx.recv() => match msg {
+                Some(msg) => match session.process(msg) {
+                    CoreEvent::StateChanged => {}
+                    CoreEvent::CoverReady { key, bytes } => tui.apply_cover(&key, &bytes),
+                    CoreEvent::Closed => break,
+                },
+                None => break,
             },
         }
     }

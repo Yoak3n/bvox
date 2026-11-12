@@ -11,7 +11,7 @@ use tokio::sync::watch;
 
 /// Point-in-time playback snapshot. The desktop backend polls mpv for this;
 /// the Android backend receives it from ExoPlayer callbacks.
-#[derive(Clone, Debug, Default, PartialEq)]
+#[derive(Clone, Debug, Default, PartialEq, uniffi::Record)]
 pub struct PlayerState {
     pub position: f64,
     pub duration: f64,
@@ -43,6 +43,9 @@ pub trait Player: Send + Sync {
 
     /// Seek relative to the current position (may be negative).
     async fn seek(&self, seconds: f64) -> Result<()>;
+
+    /// Seek to an absolute position in seconds.
+    async fn seek_to(&self, seconds: f64) -> Result<()>;
 
     /// Set the output volume (0-150, 100 = default).
     async fn set_volume(&self, volume: f64) -> Result<()>;

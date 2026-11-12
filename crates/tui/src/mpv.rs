@@ -92,6 +92,12 @@ impl Mpv {
         Ok(())
     }
 
+    pub async fn seek_to(&mut self, seconds: f64) -> Result<()> {
+        self.command(json!({"command": ["seek", seconds, "absolute"]}))
+            .await?;
+        Ok(())
+    }
+
     pub async fn set_volume(&mut self, volume: f64) -> Result<()> {
         self.command(json!({"command": ["set_property", "volume", volume]}))
             .await?;
@@ -368,6 +374,10 @@ impl Player for MpvPlayer {
 
     async fn seek(&self, seconds: f64) -> Result<()> {
         self.inner.lock().await.seek(seconds).await
+    }
+
+    async fn seek_to(&self, seconds: f64) -> Result<()> {
+        self.inner.lock().await.seek_to(seconds).await
     }
 
     async fn set_volume(&self, volume: f64) -> Result<()> {

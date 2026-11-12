@@ -43,6 +43,7 @@ pub struct BvImport {
     pub sync_error: bool,
 }
 
+#[derive(Clone, uniffi::Record)]
 pub struct LoginModal {
     pub qr: Vec<Vec<bool>>,
     pub status: String,
@@ -540,7 +541,13 @@ impl App {
 
     pub fn play_selected(&mut self) -> Option<PlayRequest> {
         let index = self.selected?;
+        self.play_at(index)
+    }
+
+    /// Start playing the queue entry at `index` from its first page.
+    pub fn play_at(&mut self, index: usize) -> Option<PlayRequest> {
         let item = self.results.get(index)?.clone();
+        self.selected = Some(index);
         self.current = Some(index);
         self.page = 0;
         self.page_count = 0;

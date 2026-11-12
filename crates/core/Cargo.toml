@@ -4,11 +4,26 @@ version.workspace = true
 edition.workspace = true
 description = "Platform-agnostic Bilibili music library (API client, cache, session state)"
 
+[lib]
+# cdylib: the Android shared library loaded via UniFFI/JNA.
+crate-type = ["lib", "cdylib"]
+
+# Gate the uniffi-bindgen helper binary behind a feature so normal builds
+# (including Android) don't pull in clap.
+[features]
+uniffi-cli = ["uniffi/cli"]
+
+[[bin]]
+name = "uniffi-bindgen"
+path = "uniffi-bindgen.rs"
+required-features = ["uniffi-cli"]
+
 [dependencies]
 anyhow.workspace = true
 async-trait = "0.1"
 md5 = "0.7"
 qrcode = { version = "0.14.1", default-features = false }
+uniffi = "0.32"
 # webpki-roots: Android has no system cert store, so the trust anchors must be
 # bundled (harmless on desktop).
 reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls-webpki-roots"] }

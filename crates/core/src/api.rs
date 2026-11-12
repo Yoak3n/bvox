@@ -128,7 +128,7 @@ async fn first_reachable(host: &str, addrs: &[SocketAddr]) -> Option<SocketAddr>
     None
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, uniffi::Record)]
 pub struct VideoItem {
     pub bvid: String,
     pub title: String,
@@ -199,14 +199,14 @@ impl AudioSource {
     }
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, uniffi::Record)]
 pub struct FavoriteFolder {
     pub id: i64,
     pub title: String,
     pub count: i64,
 }
 
-#[derive(Clone, Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug, Serialize, Deserialize, uniffi::Record)]
 pub struct LyricLine {
     pub from: f64,
     /// Reserved for karaoke-style highlighting; the UI currently keys off `from`.

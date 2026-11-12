@@ -89,11 +89,15 @@ pub struct Session {
     pub player: Arc<dyn Player>,
     pub app: App,
     tx: mpsc::UnboundedSender<Msg>,
-    rx: mpsc::UnboundedReceiver<Msg>,
 }
 
 impl Session {
-    pub async fn new(api: Arc<ApiClient>, player: Arc<dyn Player>) -> Self {
+    /// Build the session. The message receiver is returned to the caller:
+    /// it must drive `recv()` + `process()` from its own event loop (the TUI
+    /// select loop, or the UniFFI pump task). Keeping the receiver outside
+    /// `Session` lets foreign frontends wait for messages without holding
+    /// any lock the command methods need.
+    pub async fn new(api: Arc<ApiClient>, player: Arc<dyn Player>) -> (Self, mpsc::UnboundedReceiver<Msg>) {
         let (tx, rx) = mpsc::unbounded_channel();
 
         // Forward backend state snapshots into the message loop. The mpv
@@ -114,13 +118,12 @@ impl Session {
             player,
             app: App::new(),
             tx,
-            rx,
         };
         spawn_user_info(&session.api, session.tx.clone());
         if api.has_cookie().await {
             spawn_sync_pull(&session.api, session.tx.clone(), true);
         }
-        session
+        (session, rx)
     }
 
     // ----- commands -------------------------------------------------------
@@ -148,6 +151,14 @@ impl Session {
     pub async fn seek(&mut self, delta: f64) {
         if self.player.is_started().await
             && let Err(error) = self.player.seek(delta).await
+        {
+            self.app.set_error(error);
+        }
+    }
+
+    pub async fn seek_to(&mut self, seconds: f64) {
+        if self.player.is_started().await
+            && let Err(error) = self.player.seek_to(seconds).await
         {
             self.app.set_error(error);
         }
@@ -195,15 +206,64 @@ impl Session {
         }
     }
 
+    // ----- extra commands (keyboard shortcuts on the TUI) ------------------
+
+    /// Advance to the previous/next track (TUI's `n`/`p`).
+    pub fn step_track(&mut self, delta: isize) {
+        if let Some(request) = self.app.step(delta) {
+            self.play(request);
+        }
+    }
+
+    /// Re-resolve the stream for the current track (TUI's `r`).
+    pub fn retry_current(&mut self) {
+        if self.app.pending_play {
+            return;
+        }
+        let item = self.app.now_playing.clone().or_else(|| {
+            self.app
+                .current
+                .and_then(|index| self.app.results.get(index))
+                .cloned()
+        });
+        if let Some(item) = item {
+            self.app.pending_play = true;
+            self.app.set_status("重新获取播放地址…", false);
+            self.play(PlayRequest {
+                item,
+                page_index: self.app.page,
+            });
+        }
+    }
+
+    /// Open the QR login modal and start polling (TUI's `g`).
+    pub fn open_login(&mut self) {
+        let seq = self.app.open_login();
+        spawn_login(&self.api, self.tx.clone(), seq);
+    }
+
+    /// Close the login modal and invalidate the polling task.
+    pub fn cancel_login(&mut self) {
+        if self.app.login.is_some() {
+            self.app.login_seq += 1;
+            self.app.login = None;
+            self.app.set_status("已取消登录", false);
+        }
+    }
+
+    /// Stop playback entirely.
+    pub async fn stop(&mut self) {
+        self.player.quit().await;
+        self.app.has_media = false;
+        self.app.paused = false;
+        self.app.set_status("已停止播放", false);
+    }
+
     // ----- event pump -----------------------------------------------------
 
-    /// Wait for the next session event, apply it to the app state and report
-    /// what the frontend should do. Also drives EOF auto-advance.
-    pub async fn pump(&mut self) -> CoreEvent {
-        let Some(message) = self.rx.recv().await else {
-            return CoreEvent::Closed;
-        };
-
+    /// Apply one message to the app state and report what the frontend should
+    /// do. Sync and lock-free; also drives EOF auto-advance.
+    pub fn process(&mut self, message: Msg) -> CoreEvent {
         match message {
             Msg::SearchDone { seq, result } => self.app.on_search_done(seq, result),
             Msg::Playing(info) => {

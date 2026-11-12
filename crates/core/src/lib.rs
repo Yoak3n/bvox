@@ -10,8 +10,13 @@ use std::path::PathBuf;
 pub mod api;
 pub mod app;
 pub mod cache;
+pub mod ffi;
 pub mod player;
 pub mod session;
+
+// Proc-macro UniFFI workflow: scaffolding + metadata for the exported surface
+// in `ffi` (see crates/core/uniffi.toml for Kotlin package settings).
+uniffi::setup_scaffolding!("bili_core");
 
 /// Filesystem locations the library reads and writes. Frontends inject these
 /// so the core never touches `HOME` itself: the desktop passes XDG paths,
