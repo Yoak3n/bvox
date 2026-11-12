@@ -50,6 +50,49 @@ cargo build --release
 install -Dm755 target/release/bili-music ~/.local/bin/bili-music
 ```
 
+## 安卓版
+
+同一个 Rust 核心（`crates/core`）通过 UniFFI 暴露给 Kotlin，UI 用 Jetpack
+Compose，播放用 Media3/ExoPlayer（含通知栏控制、锁屏、后台播放、音频焦点）。
+队列、自动连播、缓存、登录、云同步逻辑全部在 Rust 核心里，桌面与安卓共享。
+
+架构：
+
+```
+crates/core    bili-core：api/cache/app/session/player + ffi（UniFFI 导出）
+crates/tui     bili-music-tui：ratatui 前端 + mpv IPC（Player trait 实现）
+android/       Kotlin 前端：Compose UI + PlaybackService（ExoPlayer 桥）
+```
+
+工具链（Linux，全部可装在用户目录，无需 root）：
+
+- JDK 17+（如 Temurin 21）
+- Android SDK：cmdline-tools、platforms;android-37.0、build-tools、
+  platform-tools、NDK 29.0.14206865（SDK Manager 或 sdkmanager 装）
+- `rustup target add x86_64-linux-android aarch64-linux-android`
+- `cargo install cargo-ndk`
+
+构建 APK：
+
+```bash
+cd android
+export JAVA_HOME=~/opt/jdk-21.0.13+9      # 按实际 JDK 路径
+export ANDROID_HOME=~/Android/Sdk
+./gradlew assembleDebug                    # 自动执行 cargo ndk + uniffi-bindgen
+# 产物: app/build/outputs/apk/debug/app-debug.apk
+```
+
+模拟器运行：
+
+```bash
+sdkmanager "emulator" "system-images;android-35;google_apis;x86_64"
+avdmanager create avd -n test -k "system-images;android-35;google_apis;x86_64"
+emulator -avd test &
+adb install app/build/outputs/apk/debug/app-debug.apk
+```
+
+
+
 ## 使用
 
 ```bash
