@@ -11,9 +11,11 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
@@ -43,16 +45,14 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
 
 /**
- * Login panel with three paths, in order of convenience on a single device:
- *  1. 网页登录 — an in-app WebView running bilibili.com's passport page
- *     (phone/SMS login). The cookie is picked up automatically.
- *  2. 扫码 — the original QR flow, useful when a second device scans it.
- *  3. Cookie — manual fallback copied from a browser.
+ * Login panel. QR comes first (two-device scan is the smoothest path), then
+ * the in-app WebView login (phone/SMS, for single-device use), then a manual
+ * cookie paste fallback.
  */
 @Composable
 fun LoginPanel(modal: LoginModal?, onDismiss: () -> Unit) {
     var tab by remember { mutableIntStateOf(0) }
-    val tabs = listOf("网页登录", "扫码", "Cookie")
+    val tabs = listOf("扫码登录", "网页登录", "Cookie")
 
     Dialog(
         onDismissRequest = {
@@ -62,14 +62,34 @@ fun LoginPanel(modal: LoginModal?, onDismiss: () -> Unit) {
         },
         properties = DialogProperties(usePlatformDefaultWidth = false),
     ) {
+        // The web login page positions its agreement row relative to the
+        // viewport height; a short WebView (480dp) collapses that layout onto
+        // the login button. Give that tab a near-fullscreen card so the
+        // viewport resembles a real phone (Chrome: ~890dp tall).
+        val wide = tab == 1
         Surface(
             shape = RoundedCornerShape(20.dp),
             tonalElevation = 6.dp,
-            modifier = Modifier
-                .fillMaxWidth(0.94f)
-                .padding(vertical = 24.dp),
+            modifier = if (wide) {
+                Modifier
+                    .fillMaxWidth(0.94f)
+                    .widthIn(max = 520.dp)
+                    .fillMaxHeight(0.96f)
+            } else {
+                Modifier
+                    .fillMaxWidth(0.92f)
+                    .widthIn(max = 460.dp)
+                    .padding(vertical = 24.dp)
+            },
         ) {
-            Column(modifier = Modifier.padding(16.dp)) {
+            Column(
+                modifier = Modifier
+                    .padding(
+                        horizontal = if (wide) 10.dp else 16.dp,
+                        vertical = 16.dp,
+                    )
+                    .then(if (wide) Modifier.fillMaxHeight() else Modifier),
+            ) {
                 Text("登录 B 站", style = MaterialTheme.typography.titleLarge)
                 Spacer(Modifier.height(12.dp))
 
@@ -78,9 +98,12 @@ fun LoginPanel(modal: LoginModal?, onDismiss: () -> Unit) {
                         Tab(
                             selected = tab == index,
                             onClick = {
-                                tab = index
-                                if (index == 1 && modal == null) {
-                                    CoreHolder.core.startLogin()
+                                if (index != tab) {
+                                    // Leaving the QR tab stops its poll loop;
+                                    // entering it starts a fresh one.
+                                    if (tab == 0) CoreHolder.core.cancelLogin()
+                                    if (index == 0) CoreHolder.core.startLogin()
+                                    tab = index
                                 }
                             },
                             text = { Text(title) },
@@ -90,16 +113,16 @@ fun LoginPanel(modal: LoginModal?, onDismiss: () -> Unit) {
                 Spacer(Modifier.height(12.dp))
 
                 when (tab) {
-                    0 -> WebViewLogin(
+                    0 -> QrLoginTab(modal)
+                    1 -> WebViewLogin(
                         onCookie = { cookie ->
                             CoreHolder.core.setCookie(cookie)
                             onDismiss()
                         },
                         modifier = Modifier
                             .fillMaxWidth()
-                            .height(440.dp),
+                            .weight(1f),
                     )
-                    1 -> QrLoginTab(modal)
                     2 -> CookiePasteTab(onSubmit = { cookie ->
                         CoreHolder.core.setCookie(cookie)
                         onDismiss()
@@ -145,12 +168,69 @@ private fun WebViewLogin(onCookie: (String) -> Unit, modifier: Modifier = Modifi
     AndroidView(
         modifier = modifier,
         factory = { context ->
+            // Mobile-first login page; the PC page is the fallback if the
+            // h5 variant fails to load.
+            val h5Login = "https://passport.bilibili.com/h5-app/passport/login"
+            val pcLogin = "https://passport.bilibili.com/login"
+            var fellBack = false
+
             WebView(context).apply {
                 settings.javaScriptEnabled = true
                 settings.domStorageEnabled = true
+                // Respect the page's <meta viewport> and render like mobile
+                // Chrome: bilibili serves a cleaner browser variant when the
+                // UA lacks the WebView markers ("wv", "Version/4.0"). Without
+                // this the embedded-app variant overlaps the agreement row
+                // with the login button.
+                settings.useWideViewPort = true
+                settings.loadWithOverviewMode = true
+                settings.userAgentString =
+                    "Mozilla/5.0 (Linux; Android 16; 23127PN0CC) " +
+                    "AppleWebKit/537.36 (KHTML, like Gecko) " +
+                    "Chrome/155.0.8059.43 Mobile Safari/537.36"
+                // WebView inherits the system font scale; forcing 100% keeps
+                // the page's fixed-height rows intact.
+                settings.textZoom = 100
                 CookieManager.getInstance().setAcceptCookie(true)
                 CookieManager.getInstance().setAcceptThirdPartyCookies(this, true)
                 webViewClient = object : WebViewClient() {
+                    override fun onPageFinished(view: WebView, url: String) {
+                        // The page absolutely-positions the agreement row
+                        // (.explain-tips) with JS-computed top/bottom offsets
+                        // that assume a browser viewport; in this WebView the
+                        // offsets collapse onto the login button. Put the row
+                        // back into normal flow so it sits below the form,
+                        // and keep the scroll root full-height.
+                        view.postDelayed({
+                            view.evaluateJavascript(
+                                "(function(){" +
+                                    "var st=document.createElement('style');" +
+                                    "st.textContent=" +
+                                    "'html,body{height:100%!important;min-height:100%!important}'+" +
+                                    "'.explain-tips{position:static!important;height:auto!important;" +
+                                    "margin-top:16px!important;bottom:auto!important;top:auto!important}'+" +
+                                    "'.form-btn.login-btn{margin-top:24px!important}';" +
+                                    "document.documentElement.appendChild(st);" +
+                                    "})()",
+                                null,
+                            )
+                        }, 1200)
+                    }
+
+                    override fun shouldOverrideUrlLoading(
+                        view: WebView,
+                        request: WebResourceRequest,
+                    ): Boolean {
+                        val scheme = request.url.scheme ?: return true
+                        if (scheme == "http" || scheme == "https") {
+                            return false
+                        }
+                        // Keep the page inside the WebView instead of letting
+                        // it hand off to the bilibili:// app (blank page).
+                        Log.i("BiliMusic", "blocked scheme: ${request.url}")
+                        return true
+                    }
+
                     override fun onReceivedError(
                         view: WebView,
                         request: WebResourceRequest,
@@ -160,9 +240,13 @@ private fun WebViewLogin(onCookie: (String) -> Unit, modifier: Modifier = Modifi
                             "BiliMusic",
                             "WebView 加载失败 ${request.url}: ${error.description}",
                         )
+                        if (request.isForMainFrame && !fellBack) {
+                            fellBack = true
+                            view.loadUrl(pcLogin)
+                        }
                     }
                 }
-                loadUrl("https://passport.bilibili.com/login")
+                loadUrl(h5Login)
             }
         },
         onRelease = { webView ->
@@ -200,8 +284,7 @@ private suspend fun readFullCookie(): String? {
 
 @Composable
 private fun QrLoginTab(modal: LoginModal?) {
-    // Starting the poll loop is triggered by selecting the tab; guard against
-    // double-starting when the modal is already present.
+    // The QR tab is the default one; start polling on first composition.
     LaunchedEffect(Unit) {
         if (modal == null) {
             CoreHolder.core.startLogin()
@@ -211,14 +294,14 @@ private fun QrLoginTab(modal: LoginModal?) {
     Column(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(vertical = 8.dp),
+            .padding(vertical = 4.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
         if (modal == null || modal.qr.isEmpty()) {
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .height(240.dp),
+                    .height(260.dp),
                 contentAlignment = Alignment.Center,
             ) {
                 CircularProgressIndicator()
@@ -228,16 +311,16 @@ private fun QrLoginTab(modal: LoginModal?) {
                 matrix = modal.qr,
                 modifier = Modifier
                     .fillMaxWidth()
-                    .height(240.dp),
+                    .height(260.dp),
             )
         }
         Text(
             modal?.status ?: "正在生成二维码…",
-            modifier = Modifier.padding(vertical = 6.dp),
+            modifier = Modifier.padding(top = 8.dp),
             style = MaterialTheme.typography.bodySmall,
         )
         Text(
-            "二维码适合用另一台设备扫描；同一台手机请用「网页登录」",
+            "用 B 站手机客户端扫码；同一台手机请用「网页登录」",
             style = MaterialTheme.typography.labelSmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
@@ -250,9 +333,9 @@ private fun QrLoginTab(modal: LoginModal?) {
 @Composable
 private fun CookiePasteTab(onSubmit: (String) -> Unit) {
     var input by remember { mutableStateOf("") }
-    Column(modifier = Modifier.padding(vertical = 8.dp)) {
+    Column(modifier = Modifier.padding(vertical = 4.dp)) {
         Text(
-            "在浏览器登录 bilibili.com 后，复制整段 Cookie 粘贴到这里（需包含 SESSDATA）",
+            "在浏览器登录 bilibili.com 后，复制整段 Cookie 粘贴到这里（需包含 SESSDATA 和 bili_jct）",
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
@@ -261,7 +344,7 @@ private fun CookiePasteTab(onSubmit: (String) -> Unit) {
             onValueChange = { input = it },
             modifier = Modifier
                 .fillMaxWidth()
-                .height(180.dp)
+                .height(160.dp)
                 .padding(vertical = 8.dp),
             placeholder = { Text("SESSDATA=xxx; bili_jct=yyy; DedeUserID=zzz; ...") },
         )
