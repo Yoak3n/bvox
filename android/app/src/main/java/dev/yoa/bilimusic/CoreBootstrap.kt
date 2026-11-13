@@ -3,6 +3,7 @@ package dev.yoa.bilimusic
 import android.content.ComponentName
 import android.content.Context
 import android.graphics.BitmapFactory
+import android.net.Uri
 import android.os.Handler
 import android.os.Looper
 import android.util.Log
@@ -23,6 +24,7 @@ import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import java.io.File
 
 /** Observable UI state fed by the core's events. */
 class AppModel {
@@ -63,7 +65,15 @@ class ExoPlayerBridge : PlayerBridge {
         // UA/Referer are configured on the service's DefaultHttpDataSource
         // factory (media3 1.11 has no per-item headers); the values carried
         // by LoadRequest are informational and match those constants.
-        val mediaItem = MediaItem.Builder().setUri(request.url).build()
+        // The core hands over cached tracks as plain filesystem paths —
+        // give them an explicit file:// scheme so DefaultDataSource routes
+        // them to FileDataSource instead of the HTTP stack.
+        val uri = if (request.url.startsWith("http://") || request.url.startsWith("https://")) {
+            Uri.parse(request.url)
+        } else {
+            Uri.fromFile(File(request.url))
+        }
+        val mediaItem = MediaItem.Builder().setUri(uri).build()
         controller.setMediaItem(mediaItem)
         controller.prepare()
         controller.play()

@@ -51,11 +51,14 @@ class MainActivity : ComponentActivity() {
                     val ended = controller.playbackState == androidx.media3.common.Player.STATE_ENDED
                     val idle = controller.playbackState == androidx.media3.common.Player.STATE_IDLE
                     val duration = controller.duration
+                    // A failed load leaves the player idle at 0:00; report it
+                    // as paused so the UI does not pretend to be playing.
+                    val error = controller.playerError != null
                     CoreHolder.core.reportPlayerState(
                         dev.yoa.bilimusic.core.PlayerState(
                             position = controller.currentPosition / 1000.0,
                             duration = if (duration != androidx.media3.common.C.TIME_UNSET && duration > 0) duration / 1000.0 else 0.0,
-                            paused = !controller.playWhenReady,
+                            paused = error || !controller.playWhenReady,
                             volume = controller.volume * 100.0,
                             eof = ended,
                             idle = idle,

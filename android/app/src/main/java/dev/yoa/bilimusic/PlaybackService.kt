@@ -4,6 +4,7 @@ import androidx.media3.common.AudioAttributes
 import androidx.media3.common.C
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.exoplayer.source.DefaultMediaSourceFactory
+import androidx.media3.datasource.DefaultDataSource
 import androidx.media3.datasource.DefaultHttpDataSource
 import androidx.media3.session.MediaSession
 import androidx.media3.session.MediaSessionService
@@ -33,9 +34,12 @@ class PlaybackService : MediaSessionService() {
             .setDefaultRequestProperties(
                 mapOf("Referer" to dev.yoa.bilimusic.core.playerReferer())
             )
+        // Cached tracks are local files; DefaultDataSource routes file:// to
+        // FileDataSource and everything else to the http factory above.
+        val dataSourceFactory = DefaultDataSource.Factory(this, httpFactory)
 
         val player = ExoPlayer.Builder(this)
-            .setMediaSourceFactory(DefaultMediaSourceFactory(httpFactory))
+            .setMediaSourceFactory(DefaultMediaSourceFactory(dataSourceFactory))
             .setAudioAttributes(
                 AudioAttributes.Builder()
                     .setUsage(C.USAGE_MEDIA)
