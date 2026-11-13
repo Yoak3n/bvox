@@ -110,7 +110,7 @@ impl App {
             queue_auto_advance: false,
             selected: None,
             current: None,
-            status: "按 / 搜索，b 导入 BV，g 登录，f 收藏夹，y 云同步".to_string(),
+            status: "搜索 B 站音乐；登录后可导入收藏夹与云同步".to_string(),
             error: false,
             loading: false,
             search_seq: 0,

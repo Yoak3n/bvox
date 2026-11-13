@@ -152,6 +152,10 @@ async fn run_tui() -> Result<()> {
     let api = Arc::new(ApiClient::new(CorePaths::desktop_default())?);
     let player = MpvPlayer::new();
     let (mut session, mut msg_rx) = Session::new(api, player.clone()).await;
+    // TUI-specific key hint; the core default is platform-neutral.
+    session
+        .app
+        .set_status("按 / 搜索，b 导入 BV，g 登录，f 收藏夹，y 云同步", false);
 
     // Must query stdin before the key reader starts consuming events. Keep the
     // timeout short: unsupported terminals otherwise delay startup by 2s.
