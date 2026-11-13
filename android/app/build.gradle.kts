@@ -26,8 +26,8 @@ android {
         applicationId = "dev.yoa.bvox"
         minSdk = 23
         targetSdk = 36
-        versionCode = 1
-        versionName = "0.1.0"
+        versionCode = 2
+        versionName = "0.1.1"
         ndkVersion = "29.0.14206865"
     }
 
@@ -105,7 +105,7 @@ androidComponents {
             layout.buildDirectory.dir("rustJniLibs").get().asFile.absolutePath
         )
 
-        // Branded artifact names (bvox-v0.1.0-release.apk) instead of app-release.apk.
+        // Branded artifact names (bvox-v<versionName>-<variant>.apk) instead of app-release.apk.
         variant.outputs.forEach { output ->
             val version = output.versionName.orNull ?: "0.0.0"
             output.outputFileName.set("bvox-v$version-${variant.name}.apk")
