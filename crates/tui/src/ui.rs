@@ -10,10 +10,11 @@ use ratatui_image::protocol::StatefulProtocol;
 use ratatui_image::{Resize, StatefulImage};
 use unicode_width::UnicodeWidthStr;
 
-use bili_core::api::format_secs;
-use bili_core::app::{App, FavoritesModal, InputMode, LoginModal};
 use crate::cover::Cover;
 use crate::tui_app::TuiState;
+use bvox_core::api::{AudioQuality, format_secs};
+use bvox_core::app::{App, InputMode, LoginModal, MainView};
+use bvox_core::cache::{CacheMode, format_bytes};
 
 #[derive(Clone, Copy, PartialEq, Eq)]
 enum CoverLayout {
@@ -45,7 +46,9 @@ pub fn draw(frame: &mut Frame, app: &App, tui: &mut TuiState) {
     .split(area);
 
     draw_header(frame, app, chunks[0]);
-    if app.show_lyrics {
+    if app.view == MainView::Library {
+        draw_library(frame, app, tui, chunks[1]);
+    } else if app.show_lyrics {
         draw_lyrics(frame, app, chunks[1]);
     } else {
         draw_results(frame, app, tui, chunks[1]);
@@ -55,8 +58,10 @@ pub fn draw(frame: &mut Frame, app: &App, tui: &mut TuiState) {
 
     if let Some(login) = &app.login {
         draw_login(frame, login);
-    } else if let Some(favorites) = &app.favorites {
-        draw_favorites(frame, favorites);
+    } else if tui.confirm.is_some() {
+        draw_confirm(frame, tui);
+    } else if app.picker.is_some() {
+        draw_picker(frame, app);
     }
 }
 
@@ -71,7 +76,7 @@ fn draw_header(frame: &mut Frame, app: &App, area: Rect) {
 
     let mut spans = vec![
         Span::styled(
-            " ♪ Bili Music ",
+            " ♪ Bvox ",
             Style::default()
                 .fg(Color::Black)
                 .bg(Color::Cyan)
@@ -84,6 +89,14 @@ fn draw_header(frame: &mut Frame, app: &App, area: Rect) {
             format!("@{user}  "),
             Style::default().fg(Color::Green),
         ));
+        if app.vip {
+            spans.push(Span::styled(
+                "大会员  ",
+                Style::default()
+                    .fg(Color::Yellow)
+                    .add_modifier(Modifier::BOLD),
+            ));
+        }
     }
     spans.push(Span::styled(&app.status, status_style));
 
@@ -103,10 +116,12 @@ fn draw_results(frame: &mut Frame, app: &App, tui: &mut TuiState, area: Rect) {
             } else {
                 Style::default()
             };
+            let cached = app.is_cached(&item.bvid);
             Row::new(vec![
                 Cell::from(format!("{marker}{}", index + 1)),
                 Cell::from(item.title.clone()),
                 Cell::from(item.author.clone()),
+                Cell::from(if cached { "✓" } else { "" }).style(Style::default().fg(Color::Green)),
                 Cell::from(item.duration.clone()),
             ])
             .style(style)
@@ -115,6 +130,14 @@ fn draw_results(frame: &mut Frame, app: &App, tui: &mut TuiState, area: Rect) {
 
     let title = if app.loading {
         format!(" {} · 加载中… ", app.results_title)
+    } else if app.loading_more {
+        format!(" {} ({}) · 加载中… ", app.results_title, app.results.len())
+    } else if app.has_more_results() {
+        format!(
+            " {} ({}) · 下翻加载更多 ",
+            app.results_title,
+            app.results.len()
+        )
     } else {
         format!(" {} ({}) ", app.results_title, app.results.len())
     };
@@ -125,17 +148,97 @@ fn draw_results(frame: &mut Frame, app: &App, tui: &mut TuiState, area: Rect) {
             Constraint::Length(4),
             Constraint::Min(20),
             Constraint::Length(18),
+            Constraint::Length(6),
             Constraint::Length(8),
         ],
     )
     .header(
-        Row::new(["#", "标题", "UP主", "时长"]).style(
+        Row::new(["#", "标题", "UP主", "缓存", "时长"]).style(
             Style::default()
                 .fg(Color::DarkGray)
                 .add_modifier(Modifier::BOLD),
         ),
     )
     .block(Block::bordered().title(title))
+    .row_highlight_style(
+        Style::default()
+            .bg(Color::DarkGray)
+            .add_modifier(Modifier::BOLD),
+    )
+    .highlight_symbol(" ");
+
+    frame.render_stateful_widget(table, area, &mut tui.table_state);
+}
+
+fn draw_library(frame: &mut Frame, app: &App, tui: &mut TuiState, area: Rect) {
+    let playlists = app.library_playlists();
+    let title = if app.playlists_loading {
+        " 我的歌单 · 加载中… ".to_string()
+    } else {
+        format!(" 我的歌单 ({}) ", playlists.len())
+    };
+    let block = Block::bordered().title(title);
+
+    if playlists.is_empty() {
+        let message = if app.playlists_loading {
+            "正在加载歌单…"
+        } else if app.user.is_none() && !app.has_cookie {
+            "登录后查看 B 站收藏夹歌单（g 登录）"
+        } else if app.user.is_none() {
+            "离线：暂无缓存的歌单；联网后按 f 刷新"
+        } else if !app.playlists.is_empty() && !app.show_hidden {
+            "所有歌单都已隐藏；按 H 显示隐藏项"
+        } else {
+            "还没有歌单；按 n 新建，或到 B 站网页端创建收藏夹"
+        };
+        frame.render_widget(
+            Paragraph::new(message)
+                .block(block)
+                .alignment(Alignment::Center)
+                .style(Style::default().fg(Color::DarkGray)),
+            area,
+        );
+        return;
+    }
+
+    let rows = playlists
+        .iter()
+        .enumerate()
+        .map(|(index, folder)| {
+            let hidden = app.is_hidden(folder.id);
+            let mut label = folder.title.clone();
+            if hidden {
+                label.push_str("  [已隐藏]");
+            }
+            let row = Row::new(vec![
+                Cell::from(format!("{}", index + 1)),
+                Cell::from(label),
+                Cell::from(folder.count.to_string()),
+            ]);
+            if hidden {
+                row.style(Style::default().fg(Color::DarkGray))
+            } else {
+                row
+            }
+        })
+        .collect::<Vec<_>>();
+
+    let table = Table::new(
+        rows,
+        [
+            Constraint::Length(4),
+            Constraint::Min(20),
+            Constraint::Length(10),
+        ],
+    )
+    .header(
+        Row::new(["#", "歌单", "歌曲"]).style(
+            Style::default()
+                .fg(Color::DarkGray)
+                .add_modifier(Modifier::BOLD),
+        ),
+    )
+    .block(block)
     .row_highlight_style(
         Style::default()
             .bg(Color::DarkGray)
@@ -164,16 +267,33 @@ fn draw_lyrics(frame: &mut Frame, app: &App, area: Rect) {
             &app.lyrics_status
         };
         frame.render_widget(
-            Paragraph::new(message)
-                .alignment(Alignment::Center)
-                .style(Style::default().fg(Color::DarkGray)),
+            Paragraph::new(vec![
+                Line::from(message),
+                Line::from(Span::styled(
+                    "按 L 重新拉取歌词",
+                    Style::default().fg(Color::DarkGray),
+                )),
+            ])
+            .alignment(Alignment::Center),
             inner,
         );
         return;
     }
 
+    // Keep one line at the bottom for the re-fetch hint so a wrong lyric is
+    // recoverable without knowing the keymap by heart.
+    let show_hint = inner.height > 2;
+    let lyrics_area = if show_hint {
+        Rect {
+            height: inner.height - 1,
+            ..inner
+        }
+    } else {
+        inner
+    };
+
     let (cursor, found) = app.lyric_cursor();
-    let height = inner.height as usize;
+    let height = lyrics_area.height as usize;
     let start = cursor.saturating_sub(height / 2);
     let lines = app
         .lyrics
@@ -194,11 +314,53 @@ fn draw_lyrics(frame: &mut Frame, app: &App, area: Rect) {
         })
         .collect::<Vec<_>>();
 
-    frame.render_widget(Paragraph::new(lines).alignment(Alignment::Center), inner);
+    frame.render_widget(
+        Paragraph::new(lines).alignment(Alignment::Center),
+        lyrics_area,
+    );
+    if show_hint {
+        let hint_area = Rect {
+            y: inner.y + inner.height - 1,
+            height: 1,
+            ..inner
+        };
+        frame.render_widget(
+            Paragraph::new(Span::styled(
+                "L 重新拉取歌词",
+                Style::default().fg(Color::DarkGray),
+            ))
+            .alignment(Alignment::Right),
+            hint_area,
+        );
+    }
 }
 
-fn draw_player(frame: &mut Frame, app: &App, tui: &mut TuiState, area: Rect, cover_layout: Option<CoverLayout>) {
-    let block = Block::bordered().title(" 正在播放 ");
+fn draw_player(
+    frame: &mut Frame,
+    app: &App,
+    tui: &mut TuiState,
+    area: Rect,
+    cover_layout: Option<CoverLayout>,
+) {
+    let title = match app.cache_stats {
+        Some(stats) => match app.cache_mode {
+            CacheMode::Off => format!(
+                " 正在播放 · 缓存已关闭 · 占用 {} ",
+                format_bytes(stats.total_bytes)
+            ),
+            CacheMode::SmallFiles => format!(
+                " 正在播放 · 仅小文件 · 占用 {} ",
+                format_bytes(stats.total_bytes)
+            ),
+            CacheMode::Auto => format!(
+                " 正在播放 · 缓存 {} / {} ",
+                format_bytes(stats.total_bytes),
+                format_bytes(stats.limit_bytes)
+            ),
+        },
+        None => " 正在播放 ".to_string(),
+    };
+    let block = Block::bordered().title(title);
     let inner = block.inner(area);
     frame.render_widget(block, area);
 
@@ -260,8 +422,10 @@ fn title_line(app: &App) -> Line<'static> {
     };
     let quality = if app.quality.is_empty() {
         String::new()
-    } else {
+    } else if app.quality_pref == AudioQuality::Auto {
         format!("  [{}]", app.quality)
+    } else {
+        format!("  [{} · {}]", app.quality, app.quality_pref.label())
     };
     let cache = match app.cache_progress {
         Some((downloaded, total)) => match total.filter(|total| *total > 0) {
@@ -298,10 +462,11 @@ fn gauge(app: &App) -> Gauge<'static> {
         "▶ 播放中"
     };
     let label = format!(
-        "{} / {}   {}   音量 {:.0}",
+        "{} / {}   {} · {}   音量 {:.0}",
         format_secs(app.position as i64),
         format_secs(app.duration as i64),
         icon,
+        app.play_mode.label(),
         app.volume
     );
     Gauge::default()
@@ -351,6 +516,8 @@ fn draw_footer(frame: &mut Frame, app: &App, area: Rect) {
         let (prefix, hint) = match app.input_mode {
             InputMode::Search => ("搜索: ", "  （Enter 搜索 / Esc 取消）"),
             InputMode::Bv => ("BV/URL: ", "  （Enter 导入 / Esc 取消）"),
+            InputMode::NewPlaylist => ("新歌单名: ", "  （Enter 创建 / Esc 取消）"),
+            InputMode::RenamePlaylist => ("新名称: ", "  （Enter 确认 / Esc 取消）"),
             InputMode::None => unreachable!(),
         };
         let line = Line::from(vec![
@@ -369,7 +536,20 @@ fn draw_footer(frame: &mut Frame, app: &App, area: Rect) {
         return;
     }
 
-    let help = " / 搜索  b 导入BV  Enter 播放  space 暂停  n/p 切歌  f 收藏夹  g 登录  l 歌词  y 云同步  q 退出 ";
+    let help = if app.view == MainView::Library {
+        let toggle = if app.show_hidden {
+            "H 收起隐藏"
+        } else {
+            "H 显示隐藏"
+        };
+        format!(
+            " ↑/↓ 选择  Enter 打开  n 新建  r 改名  d 删除  h 隐藏/恢复  {toggle}  f 刷新  / 搜索  g 登录  o 音质  m 模式  c 缓存  C 清缓存  Esc 返回  q 退出 "
+        )
+    } else if app.current_playlist.is_some() {
+        " Enter 播放  space 暂停  n/p 切歌  a 加入歌单  d 移除  f 歌单  Esc 歌单  / 搜索  l 歌词  L 重拉歌词  b 导入BV  o 音质  m 模式  c 缓存  C 清缓存  q 退出 ".to_string()
+    } else {
+        " Enter 播放  space 暂停  n/p 切歌  a 加入歌单  f 歌单  Esc 歌单  / 搜索  l 歌词  L 重拉歌词  b 导入BV  o 音质  m 模式  c 缓存  C 清缓存  q 退出 ".to_string()
+    };
     frame.render_widget(
         Paragraph::new(help).style(Style::default().fg(Color::DarkGray)),
         area,
@@ -451,33 +631,47 @@ fn qr_lines(matrix: &[Vec<bool>]) -> Vec<Line<'static>> {
     lines
 }
 
-fn draw_favorites(frame: &mut Frame, modal: &FavoritesModal) {
-    let height = (modal.folders.len().max(1) as u16 + 6).clamp(8, 24);
+fn draw_picker(frame: &mut Frame, app: &App) {
+    let playlists = app.library_playlists();
+    let show_new = app.pending_import.is_some();
+    let item_count = playlists.len() + usize::from(show_new);
+    let height = (item_count.max(1) as u16 + 6).clamp(8, 24);
     let area = centered(frame.area(), 64, height);
 
     frame.render_widget(Clear, area);
+    let target_title = app
+        .picker
+        .as_ref()
+        .and_then(|picker| {
+            app.results
+                .iter()
+                .find(|item| item.bvid == picker.target_bvid)
+        })
+        .map(|item| item.title.as_str())
+        .unwrap_or("所选歌曲");
     let block = Block::bordered()
-        .title(" 我的收藏夹 ")
+        .title(format!(" 加入歌单 · {target_title} "))
         .border_style(Style::default().fg(Color::Cyan));
     let inner = block.inner(area);
     frame.render_widget(block, area);
 
     let parts = Layout::vertical([Constraint::Min(1), Constraint::Length(2)]).split(inner);
 
-    let items = if modal.folders.is_empty() {
-        vec![ListItem::new(if modal.loading {
-            "加载中…"
-        } else {
-            "（空）"
-        })]
+    let mut items = playlists
+        .iter()
+        .map(|folder| ListItem::new(Line::from(format!("{}  ({})", folder.title, folder.count))))
+        .collect::<Vec<_>>();
+    if show_new {
+        items.push(ListItem::new(Line::from("＋ 新建歌单")));
+    }
+    if items.is_empty() {
+        items.push(ListItem::new("（没有歌单）"));
+    }
+
+    let selected = if item_count == 0 {
+        None
     } else {
-        modal
-            .folders
-            .iter()
-            .map(|folder| {
-                ListItem::new(Line::from(format!("{}  ({})", folder.title, folder.count)))
-            })
-            .collect()
+        app.picker.as_ref().and_then(|picker| picker.selected)
     };
 
     let list = List::new(items)
@@ -489,16 +683,45 @@ fn draw_favorites(frame: &mut Frame, modal: &FavoritesModal) {
         )
         .highlight_symbol("▶ ");
     let mut state = ListState::default();
-    state.select(modal.selected);
+    state.select(selected);
     frame.render_stateful_widget(list, parts[0], &mut state);
 
+    let footer = if show_new {
+        "Enter 加入/新建 · Esc 取消"
+    } else {
+        "Enter 加入 · Esc 取消"
+    };
     frame.render_widget(
-        Paragraph::new(vec![
-            Line::from(modal.status.clone()),
-            Line::from("Enter 导入 · Esc 关闭"),
-        ])
-        .style(Style::default().fg(Color::DarkGray)),
+        Paragraph::new(vec![Line::from(footer)]).style(Style::default().fg(Color::DarkGray)),
         parts[1],
+    );
+}
+
+fn draw_confirm(frame: &mut Frame, tui: &TuiState) {
+    let Some(confirm) = &tui.confirm else {
+        return;
+    };
+    let area = centered(frame.area(), 56, 7);
+
+    frame.render_widget(Clear, area);
+    let block = Block::bordered()
+        .title(" 请确认 ")
+        .border_style(Style::default().fg(Color::Yellow));
+    let inner = block.inner(area);
+    frame.render_widget(block, area);
+
+    let lines = Layout::vertical([Constraint::Min(1), Constraint::Length(1)]).split(inner);
+    frame.render_widget(
+        Paragraph::new(confirm.message())
+            .alignment(Alignment::Center)
+            .style(Style::default().fg(Color::White)),
+        lines[0],
+    );
+    frame.render_widget(
+        Paragraph::new("y / Enter 确认 · n / Esc 取消")
+            .alignment(Alignment::Center)
+            .style(Style::default().fg(Color::DarkGray)),
+        lines[1],
     );
 }
 

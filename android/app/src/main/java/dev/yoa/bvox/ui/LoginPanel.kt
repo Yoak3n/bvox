@@ -1,4 +1,4 @@
-package dev.yoa.bilimusic.ui
+package dev.yoa.bvox.ui
 
 import android.util.Log
 import android.webkit.CookieManager
@@ -39,8 +39,8 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
-import dev.yoa.bilimusic.CoreHolder
-import dev.yoa.bilimusic.core.LoginModal
+import dev.yoa.bvox.CoreHolder
+import dev.yoa.bvox.core.LoginModal
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
 
@@ -227,7 +227,7 @@ private fun WebViewLogin(onCookie: (String) -> Unit, modifier: Modifier = Modifi
                         }
                         // Keep the page inside the WebView instead of letting
                         // it hand off to the bilibili:// app (blank page).
-                        Log.i("BiliMusic", "blocked scheme: ${request.url}")
+                        Log.i("Bvox", "blocked scheme: ${request.url}")
                         return true
                     }
 
@@ -237,7 +237,7 @@ private fun WebViewLogin(onCookie: (String) -> Unit, modifier: Modifier = Modifi
                         error: WebResourceError,
                     ) {
                         Log.w(
-                            "BiliMusic",
+                            "Bvox",
                             "WebView 加载失败 ${request.url}: ${error.description}",
                         )
                         if (request.isForMainFrame && !fellBack) {

@@ -20,5 +20,5 @@ dependencyResolutionManagement {
     }
 }
 
-rootProject.name = "bili-music"
+rootProject.name = "bvox"
 include(":app")

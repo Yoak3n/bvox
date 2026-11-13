@@ -1,7 +1,7 @@
 //! Frontend-agnostic playback interface.
 //!
 //! The core drives playback through this trait only. The desktop TUI supplies
-//! the mpv implementation (`bili-music-tui::mpv`); the Android app bridges the
+//! the mpv implementation (`bvox-tui::mpv`); the Android app bridges the
 //! calls to ExoPlayer over UniFFI. Playback state flows back through a
 //! `watch` channel so the session loop treats both backends identically.
 
@@ -23,10 +23,20 @@ pub struct PlayerState {
 
 /// Stream hints the player needs for remote audio. Bilibili CDNs reject
 /// requests without a browser-like user agent and the right referer.
+///
+/// The descriptive fields are only used by frontends that surface the current
+/// track outside their own window (Android's notification / lock screen); the
+/// desktop TUI ignores them.
 #[derive(Clone, Debug)]
 pub struct PlayerConfig {
     pub user_agent: String,
     pub referer: String,
+    pub title: String,
+    pub artist: String,
+    /// Cover image URL, when the track has one.
+    pub cover_url: Option<String>,
+    /// Seconds to start from, used when resuming the last session.
+    pub start_position: f64,
 }
 
 #[async_trait]

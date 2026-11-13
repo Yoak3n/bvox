@@ -1,0 +1,8 @@
+# Global UniFFI configuration for the Bvox workspace (uniffi 0.32+).
+#
+# The Android build passes this file to uniffi-bindgen:
+#   uniffi-bindgen generate ... --config uniffi.toml
+# [defaults] applies to every crate; a crate's own uniffi.toml, if present,
+# is merged on top of these values.
+[defaults.bindings.kotlin]
+package_name = "dev.yoa.bvox.core"

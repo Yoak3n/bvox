@@ -6,5 +6,9 @@ android/build/
 android/app/build/
 android/local.properties
 
+# Release signing material (never commit)
+android/keystore/
+android/keystore.properties
+
 # ZCode session artifacts
 .zcode/

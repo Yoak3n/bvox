@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Media notification channel shown in the system settings. -->
+    <string name="playback_channel_name">播放控制</string>
+    <string name="previous_track">上一首</string>
+    <string name="next_track">下一首</string>
+</resources>

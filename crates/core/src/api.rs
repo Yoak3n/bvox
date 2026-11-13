@@ -1,7 +1,7 @@
 //! Bilibili API: WBI search, QR login, favorites, subtitles, covers and
 //! audio-only DASH streams.
 
-use std::collections::HashMap;
+use std::collections::{BTreeMap, HashMap};
 use std::net::SocketAddr;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
@@ -27,15 +27,18 @@ const MIXIN_KEY_ENC_TAB: [usize; 64] = [
     54, 21, 56, 59, 6, 63, 57, 62, 11, 36, 20, 34, 44, 52,
 ];
 
-pub const CONFIG_DIR_NAME: &str = "bili-music";
+pub const CONFIG_DIR_NAME: &str = "bvox";
 
 /// Bilibili's music top-level partition ("音乐", zone id 3). Searches are
 /// restricted to it so results stay playable music instead of videos from
 /// every zone.
 const MUSIC_TID: &str = "3";
+/// Default hit count per search page when the response omits `pagesize`.
+const SEARCH_PAGE_SIZE: usize = 20;
 const COOKIE_FILE_NAME: &str = "cookie";
-const SYNC_FOLDER_FILE_NAME: &str = "sync_folder";
-const DEFAULT_SYNC_FOLDER_TITLE: &str = "bili-music 云同步";
+const AUDIO_QUALITY_FILE_NAME: &str = "audio_quality";
+const PLAY_MODE_FILE_NAME: &str = "play_mode";
+const HIDDEN_PLAYLISTS_FILE_NAME: &str = "hidden_playlists.json";
 
 /// Prefer IPv4 and put a reachable address first. Some Bilibili CDN nodes
 /// publish addresses that accept DNS but silently drop connections, and
@@ -133,13 +136,27 @@ async fn first_reachable(host: &str, addrs: &[SocketAddr]) -> Option<SocketAddr>
     None
 }
 
-#[derive(Clone, Debug, uniffi::Record)]
+#[derive(Clone, Debug, Serialize, Deserialize, uniffi::Record)]
 pub struct VideoItem {
+    /// Bilibili `aid`; required to add/remove the video from a favorite folder.
+    pub aid: i64,
     pub bvid: String,
     pub title: String,
     pub author: String,
     pub duration: String,
     pub pic: Option<String>,
+}
+
+/// One page of search hits plus the pagination metadata Bilibili reports.
+#[derive(Clone, Debug)]
+pub struct SearchPage {
+    pub items: Vec<VideoItem>,
+    /// Page number this result belongs to (1-based).
+    pub page: u32,
+    /// Total number of pages the query has.
+    pub pages: u32,
+    /// Total number of hits the query has.
+    pub total: u64,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -204,7 +221,7 @@ impl AudioSource {
     }
 }
 
-#[derive(Clone, Debug, uniffi::Record)]
+#[derive(Clone, Debug, Serialize, Deserialize, uniffi::Record)]
 pub struct FavoriteFolder {
     pub id: i64,
     pub title: String,
@@ -223,6 +240,123 @@ pub struct LyricLine {
 #[derive(Clone, Debug)]
 pub struct UserInfo {
     pub name: String,
+    /// Avatar URL from the nav response (http on some accounts).
+    pub face: Option<String>,
+    /// True for an active 大会员 (VIP) account, which unlocks Dolby/Hi-Res
+    /// audio tracks.
+    pub vip: bool,
+}
+
+/// Preferred audio track for playback.
+///
+/// `Auto` follows the account entitlement: premium accounts get Hi-Res/Dolby
+/// when the video has them, everyone else stays on AAC. The explicit
+/// variants override that, and any premium choice falls back to AAC when the
+/// account has no access or the stream is rejected.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, uniffi::Enum)]
+pub enum AudioQuality {
+    #[default]
+    Auto,
+    Aac,
+    Dolby,
+    HiRes,
+}
+
+impl AudioQuality {
+    pub fn label(self) -> &'static str {
+        match self {
+            Self::Auto => "自动",
+            Self::Aac => "AAC",
+            Self::Dolby => "Dolby",
+            Self::HiRes => "Hi-Res",
+        }
+    }
+
+    pub fn next(self) -> Self {
+        match self {
+            Self::Auto => Self::Aac,
+            Self::Aac => Self::Dolby,
+            Self::Dolby => Self::HiRes,
+            Self::HiRes => Self::Auto,
+        }
+    }
+
+    fn as_str(self) -> &'static str {
+        match self {
+            Self::Auto => "auto",
+            Self::Aac => "aac",
+            Self::Dolby => "dolby",
+            Self::HiRes => "hires",
+        }
+    }
+
+    fn parse(value: &str) -> Option<Self> {
+        match value {
+            "auto" => Some(Self::Auto),
+            "aac" => Some(Self::Aac),
+            "dolby" => Some(Self::Dolby),
+            "hires" => Some(Self::HiRes),
+            _ => None,
+        }
+    }
+}
+
+/// Premium tracks (Dolby / Hi-Res) require an active 大会员 entitlement.
+fn is_premium_audio(id: i64) -> bool {
+    matches!(id, 30250 | 30251)
+}
+
+/// How playback continues after the current track ends.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, uniffi::Enum)]
+pub enum PlayMode {
+    /// 顺序播放：播完列表就停。
+    #[default]
+    Sequential,
+    /// 列表循环：播完回到第一首。
+    RepeatAll,
+    /// 单曲循环：反复播放当前曲目。
+    RepeatOne,
+    /// 随机播放：按随机顺序播放，上一首可回退。
+    Shuffle,
+}
+
+impl PlayMode {
+    pub fn label(self) -> &'static str {
+        match self {
+            Self::Sequential => "顺序播放",
+            Self::RepeatAll => "列表循环",
+            Self::RepeatOne => "单曲循环",
+            Self::Shuffle => "随机播放",
+        }
+    }
+
+    pub fn next(self) -> Self {
+        match self {
+            Self::Sequential => Self::RepeatAll,
+            Self::RepeatAll => Self::RepeatOne,
+            Self::RepeatOne => Self::Shuffle,
+            Self::Shuffle => Self::Sequential,
+        }
+    }
+
+    fn as_str(self) -> &'static str {
+        match self {
+            Self::Sequential => "sequential",
+            Self::RepeatAll => "repeat_all",
+            Self::RepeatOne => "repeat_one",
+            Self::Shuffle => "shuffle",
+        }
+    }
+
+    fn parse(value: &str) -> Option<Self> {
+        match value {
+            "sequential" => Some(Self::Sequential),
+            "repeat_all" => Some(Self::RepeatAll),
+            "repeat_one" => Some(Self::RepeatOne),
+            "shuffle" => Some(Self::Shuffle),
+            _ => None,
+        }
+    }
 }
 
 #[derive(Clone, Debug)]
@@ -247,12 +381,13 @@ pub struct ApiClient {
     keys: Mutex<Option<(String, String, Instant)>>,
     buvid: Mutex<Option<String>>,
     cookie: Mutex<Option<String>>,
-    sync_folder: Mutex<Option<i64>>,
+    /// Serializes read-modify-write of the per-account hidden playlist file.
+    hidden_playlists_lock: Mutex<()>,
 }
 
 impl ApiClient {
     pub fn new(paths: CorePaths) -> Result<Self> {
-        let cookie = std::env::var("BILI_COOKIE")
+        let cookie = std::env::var("BVOX_COOKIE")
             .ok()
             .map(|value| value.trim().to_string())
             .filter(|value| !value.is_empty())
@@ -266,17 +401,17 @@ impl ApiClient {
             .context("创建 HTTP 客户端失败")?;
 
         let cache_mb = paths.cache_mb;
+        let cache_mode = paths.cache_mode;
         let cache_dir = paths.cache_dir.clone();
-        let data_dir = paths.data_dir.clone();
         Ok(Self {
             http,
             resolver,
             paths,
-            cache: Cache::new(cache_dir, cache_mb),
+            cache: Cache::new(cache_dir, cache_mb, cache_mode),
             keys: Mutex::new(None),
             buvid: Mutex::new(None),
             cookie: Mutex::new(cookie.clone()),
-            sync_folder: Mutex::new(load_sync_folder_id(&data_dir)),
+            hidden_playlists_lock: Mutex::new(()),
         })
     }
 
@@ -284,8 +419,13 @@ impl ApiClient {
         &self.cache
     }
 
-    pub fn cache_enabled(&self) -> bool {
-        self.cache.enabled()
+    /// Directory holding the cookie and the small per-user preference files.
+    pub fn data_dir(&self) -> &std::path::Path {
+        &self.paths.data_dir
+    }
+
+    pub fn audio_cache_enabled(&self) -> bool {
+        self.cache.audio_enabled()
     }
 
     pub async fn has_cookie(&self) -> bool {
@@ -307,6 +447,58 @@ impl ApiClient {
         let _ = std::fs::remove_file(cookie_path(&self.paths.data_dir));
     }
 
+    /// Audio quality preference persisted next to the cookie.
+    pub fn audio_quality(&self) -> AudioQuality {
+        std::fs::read_to_string(self.paths.data_dir.join(AUDIO_QUALITY_FILE_NAME))
+            .ok()
+            .and_then(|value| AudioQuality::parse(value.trim()))
+            .unwrap_or_default()
+    }
+
+    pub fn save_audio_quality(&self, quality: AudioQuality) {
+        let path = self.paths.data_dir.join(AUDIO_QUALITY_FILE_NAME);
+        if let Some(parent) = path.parent() {
+            let _ = std::fs::create_dir_all(parent);
+        }
+        let _ = std::fs::write(path, quality.as_str());
+    }
+
+    /// Playback order preference, persisted next to the cookie.
+    pub fn play_mode(&self) -> PlayMode {
+        std::fs::read_to_string(self.paths.data_dir.join(PLAY_MODE_FILE_NAME))
+            .ok()
+            .and_then(|value| PlayMode::parse(value.trim()))
+            .unwrap_or_default()
+    }
+
+    pub fn save_play_mode(&self, mode: PlayMode) {
+        let path = self.paths.data_dir.join(PLAY_MODE_FILE_NAME);
+        if let Some(parent) = path.parent() {
+            let _ = std::fs::create_dir_all(parent);
+        }
+        let _ = std::fs::write(path, mode.as_str());
+    }
+
+    /// Favorite folder ids hidden by the current account. Stored next to the
+    /// cookie, keyed by `DedeUserID`, so switching accounts keeps each set.
+    pub async fn hidden_playlists(&self) -> Vec<i64> {
+        let Some(mid) = self.mid().await else {
+            return Vec::new();
+        };
+        let map = load_hidden_playlists(&self.paths.data_dir);
+        hidden_ids_for(&map, mid)
+    }
+
+    /// Hide or unhide one favorite folder for the current account and persist
+    /// the list locally.
+    pub async fn set_playlist_hidden(&self, folder_id: i64, hidden: bool) -> Result<()> {
+        let mid = self.mid().await.context("未登录，无法保存隐藏歌单")?;
+        let _guard = self.hidden_playlists_lock.lock().await;
+        let mut map = load_hidden_playlists(&self.paths.data_dir);
+        set_hidden_id(&mut map, mid, folder_id, hidden);
+        save_hidden_playlists(&self.paths.data_dir, &map)
+    }
+
     pub async fn user_info(&self) -> Result<Option<UserInfo>> {
         let resp: NavResponse = self
             .get_json("https://api.bilibili.com/x/web-interface/nav", None)
@@ -322,6 +514,11 @@ impl ApiClient {
         }
         Ok(Some(UserInfo {
             name: data.uname.unwrap_or_default(),
+            face: data
+                .face
+                .map(|face| face.trim().to_string())
+                .filter(|face| !face.is_empty()),
+            vip: data.vip_status > 0 || data.vip.is_some_and(|vip| vip.status > 0),
         }))
     }
 
@@ -404,8 +601,15 @@ impl ApiClient {
         }
     }
 
-    /// Search videos. The wbi endpoint requires a `buvid3` cookie and a signed query.
+    /// Search the first page of videos. Kept for one-shot callers such as the
+    /// headless CLI; interactive frontends page through [`Self::search_page`].
     pub async fn search(&self, keyword: &str) -> Result<Vec<VideoItem>> {
+        Ok(self.search_page(keyword, 1).await?.items)
+    }
+
+    /// Search videos. The wbi endpoint requires a `buvid3` cookie and a signed query.
+    pub async fn search_page(&self, keyword: &str, page: u32) -> Result<SearchPage> {
+        let page = page.max(1);
         let (img_key, sub_key) = self.wbi_keys().await?;
         let mixin_key = mixin_key(&img_key, &sub_key);
         let buvid = self.buvid_extra().await?;
@@ -414,7 +618,7 @@ impl ApiClient {
             vec![
                 ("search_type", "video".to_string()),
                 ("keyword", keyword.to_string()),
-                ("page", "1".to_string()),
+                ("page", page.to_string()),
                 ("tids", MUSIC_TID.to_string()),
             ],
             &mixin_key,
@@ -434,27 +638,54 @@ impl ApiClient {
             );
         }
 
-        let items = resp
-            .data
-            .and_then(|data| data.result)
+        let data = resp.data.unwrap_or_default();
+        let items = data
+            .result
             .unwrap_or_default()
             .into_iter()
-            .filter_map(|raw| {
-                let bvid = raw.bvid?;
-                if bvid.is_empty() {
-                    return None;
-                }
-                Some(VideoItem {
-                    bvid,
-                    title: clean_title(raw.title.as_deref().unwrap_or("")),
-                    author: raw.author.unwrap_or_default(),
-                    duration: normalize_duration(raw.duration.as_deref().unwrap_or("")),
-                    pic: raw.pic.as_deref().map(normalize_url),
-                })
-            })
-            .collect();
+            .filter_map(SearchRaw::into_item)
+            .collect::<Vec<_>>();
+        let page_no = if data.page == 0 { page } else { data.page };
+        // Older responses occasionally omit `numPages`; a full page then
+        // implies another one may exist, and an empty page ends the run.
+        let pages = if data.num_pages > 0 {
+            data.num_pages
+        } else if !items.is_empty() {
+            let size = if data.page_size > 0 {
+                data.page_size as usize
+            } else {
+                SEARCH_PAGE_SIZE
+            };
+            if items.len() >= size {
+                page_no + 1
+            } else {
+                page_no
+            }
+        } else {
+            page_no
+        };
 
-        Ok(items)
+        Ok(SearchPage {
+            items,
+            page: page_no,
+            pages,
+            total: data.num_results,
+        })
+    }
+
+    /// Follow a share short link (`b23.tv`, `bili2233.cn`) to the page it
+    /// points at. reqwest follows the redirect chain, so one request is
+    /// enough; the final URL is what callers parse for a BV id.
+    pub async fn resolve_share_link(&self, link: &str) -> Result<String> {
+        let response = self
+            .http
+            .get(link)
+            .header("User-Agent", UA)
+            .header("Referer", REFERER)
+            .send()
+            .await
+            .context("打开分享链接失败")?;
+        Ok(response.url().to_string())
     }
 
     /// Resolve a BV id into its first page cid and metadata.
@@ -530,7 +761,17 @@ impl ApiClient {
     }
 
     /// Fetch the DASH audio stream for a video. No signature is required for this endpoint.
-    pub async fn audio_stream(&self, bvid: &str, cid: i64) -> Result<AudioStream> {
+    ///
+    /// `preference` orders the candidates; premium tracks are preflighted with
+    /// a ranged request because the CDN answers 403 when the account lacks the
+    /// 大会员 entitlement, in which case the next candidate wins.
+    pub async fn audio_stream(
+        &self,
+        bvid: &str,
+        cid: i64,
+        preference: AudioQuality,
+        vip: bool,
+    ) -> Result<AudioStream> {
         let url = format!(
             "https://api.bilibili.com/x/player/playurl?bvid={}&cid={cid}&fnval=4048&fnver=0&fourk=1",
             encode_component(bvid)
@@ -557,43 +798,84 @@ impl ApiClient {
             .data
             .and_then(|data| data.dash)
             .context("响应中没有 DASH 数据")?;
-        let mut streams = dash.audio.unwrap_or_default();
+        let candidates = order_audio_candidates(
+            dash.audio.unwrap_or_default(),
+            dash.flac.and_then(|flac| flac.audio),
+            dash.dolby.and_then(|dolby| dolby.audio).unwrap_or_default(),
+            preference,
+            vip,
+        );
 
-        // Only fall back to premium tracks when there is no regular AAC stream.
-        if streams.is_empty() {
-            if let Some(flac) = dash.flac.and_then(|flac| flac.audio) {
-                streams.push(flac);
+        let mut rejected_premium = false;
+        for track in candidates {
+            let Some(url) = track
+                .base_url
+                .or_else(|| track.backup_url.into_iter().next())
+            else {
+                continue;
+            };
+            if is_premium_audio(track.id) && !self.premium_stream_playable(&url).await {
+                rejected_premium = true;
+                continue;
             }
+            return Ok(AudioStream {
+                url,
+                id: track.id,
+                bandwidth: track.bandwidth,
+            });
         }
-        if streams.is_empty() {
-            if let Some(dolby) = dash.dolby.and_then(|dolby| dolby.audio) {
-                streams.extend(dolby);
-            }
+
+        if rejected_premium {
+            bail!("高音质流不可用（需要大会员权益），且没有可回退的 AAC 流");
         }
+        bail!("该视频没有可用的音频流")
+    }
 
-        let best = streams
-            .into_iter()
-            .max_by_key(|stream| stream.bandwidth)
-            .context("该视频没有可用的音频流")?;
-
-        let url = best
-            .base_url
-            .or_else(|| best.backup_url.into_iter().next())
-            .context("音频流缺少地址")?;
-
-        Ok(AudioStream {
-            url,
-            id: best.id,
-            bandwidth: best.bandwidth,
-        })
+    /// Premium DASH tracks answer 403 on the CDN when the account has no
+    /// entitlement, even if `playurl` listed them. Probe with a 2-byte range
+    /// request and let the caller fall back instead of handing the player a
+    /// dead URL.
+    async fn premium_stream_playable(&self, url: &str) -> bool {
+        let request = self
+            .http
+            .get(url)
+            .header("User-Agent", UA)
+            .header("Referer", REFERER)
+            .header("Range", "bytes=0-1")
+            .timeout(Duration::from_secs(5));
+        matches!(request.send().await, Ok(response) if response.status().is_success())
     }
 
     /// Prefer a finished cache file; fall back to a freshly resolved stream URL.
-    pub async fn audio_source(&self, bvid: &str, cid: i64) -> Result<AudioSource> {
-        if let Some(cached) = self.cache.find_audio(bvid, cid) {
-            return Ok(AudioSource::Cached(cached));
+    pub async fn audio_source(
+        &self,
+        bvid: &str,
+        cid: i64,
+        preference: AudioQuality,
+        vip: bool,
+    ) -> Result<AudioSource> {
+        let cached = self.cache.find_audio(bvid, cid);
+
+        // A cached file already at the preference's top quality is final.
+        if let Some(cached) = &cached
+            && track_kind(cached.quality_id) == preferred_kind(preference, vip)
+        {
+            return Ok(AudioSource::Cached(cached.clone()));
         }
-        Ok(AudioSource::Remote(self.audio_stream(bvid, cid).await?))
+
+        match self.audio_stream(bvid, cid, preference, vip).await {
+            Ok(stream) => {
+                // The fresh stream is the same encoding as the cached copy;
+                // keep using the local file.
+                if let Some(cached) = cached
+                    && cached.quality_id == stream.id
+                {
+                    return Ok(AudioSource::Cached(cached));
+                }
+                Ok(AudioSource::Remote(stream))
+            }
+            Err(error) => cached.map(AudioSource::Cached).ok_or(error),
+        }
     }
 
     /// Download a stream into the audio cache, reporting `(downloaded, total)`
@@ -609,7 +891,7 @@ impl ApiClient {
     where
         F: Fn(u64, Option<u64>) + Send + 'static,
     {
-        if !self.cache.enabled() {
+        if !self.cache.audio_enabled() {
             bail!("本地缓存已关闭");
         }
 
@@ -687,7 +969,7 @@ impl ApiClient {
     }
 
     pub async fn favorite_folders(&self) -> Result<Vec<FavoriteFolder>> {
-        let mid = self.mid().await.context("未登录，请先按 g 扫码登录")?;
+        let mid = self.mid().await.context("未登录，请先登录")?;
         let url = format!("https://api.bilibili.com/x/v3/fav/folder/created/list-all?up_mid={mid}");
         let resp: FavoriteFoldersResponse =
             self.get_json(&url, None).await.context("获取收藏夹失败")?;
@@ -700,17 +982,30 @@ impl ApiClient {
             );
         }
 
-        Ok(resp
-            .data
-            .and_then(|data| data.list)
-            .unwrap_or_default()
-            .into_iter()
-            .map(|folder| FavoriteFolder {
-                id: folder.id,
-                title: clean_title(&folder.title),
-                count: folder.media_count,
-            })
-            .collect())
+        let folders = playlist_folders(
+            resp.data.and_then(|data| data.list).unwrap_or_default(),
+        );
+        let _ = crate::playlists::save_folders(&self.paths.data_dir, mid, &folders);
+        Ok(folders)
+    }
+
+    /// Last successfully fetched folder list for the current account.
+    pub async fn cached_favorite_folders(&self) -> Option<Vec<FavoriteFolder>> {
+        let mid = self.mid().await?;
+        crate::playlists::load_folders(&self.paths.data_dir, mid)
+    }
+
+    /// Last successfully fetched contents of one folder.
+    pub async fn cached_favorite_items(&self, media_id: i64) -> Option<Vec<VideoItem>> {
+        let mid = self.mid().await?;
+        crate::playlists::load_items(&self.paths.data_dir, mid, media_id)
+    }
+
+    /// Persist the folder list after a local mutation (create/rename/delete).
+    pub async fn save_playlist_cache(&self, folders: &[FavoriteFolder]) {
+        if let Some(mid) = self.mid().await {
+            let _ = crate::playlists::save_folders(&self.paths.data_dir, mid, folders);
+        }
     }
 
     /// Import every playable video from a favorite folder (up to 100 pages).
@@ -743,19 +1038,9 @@ impl ApiClient {
             }
 
             for media in medias {
-                if media.media_type != 2 {
-                    continue; // only regular videos are playable
+                if let Some(item) = media.into_item() {
+                    items.push(item);
                 }
-                let Some(bvid) = media.bvid.filter(|bvid| !bvid.is_empty()) else {
-                    continue;
-                };
-                items.push(VideoItem {
-                    bvid,
-                    title: clean_title(&media.title),
-                    author: media.upper.map(|upper| upper.name).unwrap_or_default(),
-                    duration: format_secs(media.duration),
-                    pic: media.cover.as_deref().map(normalize_url),
-                });
             }
 
             if !data.has_more {
@@ -763,116 +1048,21 @@ impl ApiClient {
             }
         }
 
+        if let Some(mid) = self.mid().await {
+            let _ = crate::playlists::save_items(&self.paths.data_dir, mid, media_id, &items);
+        }
         Ok(items)
     }
 
-    /// Return the dedicated private sync folder. With `create=false` this only
-    /// looks it up by title in the current account; with `create=true` a stale
-    /// cache or a missing folder is replaced/created.
-    pub async fn sync_folder(&self, create: bool) -> Result<Option<FavoriteFolder>> {
-        if create && let Some(id) = *self.sync_folder.lock().await {
-            return Ok(Some(FavoriteFolder {
-                id,
-                title: sync_folder_title(),
-                count: 0,
-            }));
-        }
-
-        let folders = self.favorite_folders().await?;
-        if let Some(folder) = folders
-            .into_iter()
-            .find(|folder| folder.title == sync_folder_title())
-        {
-            self.remember_sync_folder(folder.id).await;
-            return Ok(Some(folder));
-        }
-
-        if !create {
-            return Ok(None);
-        }
-
-        let id = self
-            .create_favorite_folder(&sync_folder_title(), true)
-            .await?;
-        self.remember_sync_folder(id).await;
-        Ok(Some(FavoriteFolder {
-            id,
-            title: sync_folder_title(),
-            count: 0,
-        }))
-    }
-
-    pub async fn sync_items(
-        &self,
-        create: bool,
-    ) -> Result<Option<(FavoriteFolder, Vec<VideoItem>)>> {
-        let Some(folder) = self.sync_folder(create).await? else {
-            return Ok(None);
-        };
-
-        match self.favorite_items(folder.id).await {
-            Ok(items) => Ok(Some((folder, items))),
-            Err(_) if !create => Ok(None),
-            Err(_) => {
-                // The cached folder id may be stale (deleted on the web).
-                self.forget_sync_folder().await;
-                let Some(folder) = self.sync_folder(true).await? else {
-                    return Ok(None);
-                };
-                let items = self.favorite_items(folder.id).await?;
-                Ok(Some((folder, items)))
-            }
-        }
-    }
-
-    /// Add one video to the sync folder, creating the folder on first use.
-    pub async fn add_to_sync(&self, aid: i64) -> Result<FavoriteFolder> {
-        let folder = self
-            .sync_folder(true)
-            .await?
-            .context("无法创建云同步收藏夹")?;
-
-        match self.add_video_to_favorite(folder.id, aid).await {
-            Ok(()) => Ok(folder),
-            Err(first_error) => {
-                // The cached folder may have been deleted on the web.
-                self.forget_sync_folder().await;
-                let folder = self
-                    .sync_folder(true)
-                    .await?
-                    .context("无法创建云同步收藏夹")?;
-                self.add_video_to_favorite(folder.id, aid)
-                    .await
-                    .with_context(|| format!("首次加入失败: {first_error:#}"))?;
-                Ok(folder)
-            }
-        }
-    }
-
-    async fn create_favorite_folder(&self, title: &str, private: bool) -> Result<i64> {
+    async fn create_favorite_folder(&self, title: &str, intro: &str, private: bool) -> Result<i64> {
         let csrf = self.csrf_token().await?;
-        let body = format!(
-            "title={}&intro={}&privacy={}&csrf={}",
-            encode_component(title),
-            encode_component("bili-music 云同步收藏夹"),
-            if private { "1" } else { "0" },
-            encode_component(&csrf)
-        );
+        let body = folder_create_body(title, intro, private, &csrf);
         let response = self
             .post_form("https://api.bilibili.com/x/v3/fav/folder/add", body)
             .await
             .context("创建收藏夹失败")?;
 
-        let code = response.get("code").and_then(Value::as_i64).unwrap_or(-1);
-        if code != 0 {
-            bail!(
-                "创建收藏夹失败 {code}: {}",
-                response
-                    .get("message")
-                    .and_then(Value::as_str)
-                    .unwrap_or("未知错误")
-            );
-        }
+        check_response(&response, "创建收藏夹失败")?;
 
         if let Some(id) = response
             .get("data")
@@ -885,46 +1075,86 @@ impl ApiClient {
         self.favorite_folders()
             .await?
             .into_iter()
-            .find(|folder| folder.title == title)
+            .find(|folder| folder.title == clean_title(title))
             .map(|folder| folder.id)
             .context("收藏夹已创建但无法获取 id")
     }
 
-    async fn add_video_to_favorite(&self, folder_id: i64, aid: i64) -> Result<()> {
+    /// Create a private playlist. Everything this app creates stays out of the
+    /// public profile by default; privacy can still be changed on the website.
+    pub async fn create_playlist(&self, title: &str) -> Result<FavoriteFolder> {
+        let title = title.trim();
+        if title.is_empty() {
+            bail!("歌单名不能为空");
+        }
+        let id = self
+            .create_favorite_folder(title, "由 Bvox 创建", true)
+            .await?;
+        Ok(FavoriteFolder {
+            id,
+            title: title.to_string(),
+            count: 0,
+        })
+    }
+
+    /// Rename a favorite folder. Only the title is sent so the folder's
+    /// privacy/intro configured on the website stay untouched.
+    pub async fn rename_playlist(&self, media_id: i64, title: &str) -> Result<()> {
+        let title = title.trim();
+        if title.is_empty() {
+            bail!("歌单名不能为空");
+        }
         let csrf = self.csrf_token().await?;
-        let body = format!(
-            "rid={aid}&type=2&add_media_ids={folder_id}&del_media_ids=&csrf={}",
-            encode_component(&csrf)
-        );
+        let body = folder_edit_body(media_id, title, &csrf);
+        let response = self
+            .post_form("https://api.bilibili.com/x/v3/fav/folder/edit", body)
+            .await
+            .context("重命名歌单失败")?;
+        check_response(&response, "重命名歌单失败")
+    }
+
+    /// Delete a favorite folder. The videos themselves are not deleted.
+    pub async fn delete_playlist(&self, media_id: i64) -> Result<()> {
+        let csrf = self.csrf_token().await?;
+        let body = folder_delete_body(media_id, &csrf);
+        let response = self
+            .post_form("https://api.bilibili.com/x/v3/fav/folder/del", body)
+            .await
+            .context("删除歌单失败")?;
+        check_response(&response, "删除歌单失败")
+    }
+
+    /// Add or remove one video from a folder. Returns `false` when the folder
+    /// already was (or already wasn't) in the requested state, so callers can
+    /// keep their cached song counts accurate.
+    pub async fn set_favorite(&self, folder_id: i64, aid: i64, add: bool) -> Result<bool> {
+        let csrf = self.csrf_token().await?;
+        let body = deal_body(folder_id, aid, add, &csrf);
+        let action = if add {
+            "加入歌单失败"
+        } else {
+            "从歌单移除失败"
+        };
         let response = self
             .post_form("https://api.bilibili.com/x/v3/fav/resource/deal", body)
             .await
-            .context("加入收藏夹失败")?;
+            .context(action)?;
 
         let code = response.get("code").and_then(Value::as_i64).unwrap_or(-1);
-        // 11201 means the video is already in this folder.
-        if code == 0 || code == 11201 {
-            return Ok(());
+        if code == 0 {
+            return Ok(true);
+        }
+        // 11201: already favorited; 11202: not favorited (remove no-op).
+        if (add && code == 11201) || (!add && code == 11202) {
+            return Ok(false);
         }
         bail!(
-            "加入收藏夹失败 {code}: {}",
+            "{action} {code}: {}",
             response
                 .get("message")
                 .and_then(Value::as_str)
                 .unwrap_or("未知错误")
         )
-    }
-
-    async fn remember_sync_folder(&self, id: i64) {
-        *self.sync_folder.lock().await = Some(id);
-        let _ = save_sync_folder_id(&self.paths.data_dir, id);
-    }
-
-    /// Drop the cached cloud-sync folder id (memory + disk). Needed when
-    /// switching accounts, since the id belongs to the previous account.
-    pub async fn forget_sync_folder(&self) {
-        *self.sync_folder.lock().await = None;
-        let _ = std::fs::remove_file(sync_folder_path(&self.paths.data_dir));
     }
 
     async fn csrf_token(&self) -> Result<String> {
@@ -933,10 +1163,10 @@ impl ApiClient {
             .lock()
             .await
             .clone()
-            .context("未登录，请先按 g 扫码登录")?;
+            .context("未登录，请先登录")?;
         cookie_field(&cookie, "bili_jct")
             .filter(|value| !value.is_empty())
-            .context("Cookie 缺少 bili_jct，请重新扫码登录")
+            .context("Cookie 缺少 bili_jct，请重新登录")
     }
 
     async fn post_form(&self, url: &str, body: String) -> Result<Value> {
@@ -975,103 +1205,111 @@ impl ApiClient {
     /// Fetch subtitle lines for a video. Returns an empty list when the video
     /// has no subtitles; network/parse failures are errors. Non-empty results
     /// are cached because a cid's subtitles do not change.
-    pub async fn lyrics(&self, bvid: &str, cid: i64) -> Result<Vec<LyricLine>> {
+    ///
+    /// `aid` is used alongside `cid` to verify AI subtitle URLs returned by
+    /// the unsigned endpoint (see [`subtitle_belongs_to_video`]).
+    pub async fn lyrics(&self, aid: i64, bvid: &str, cid: i64) -> Result<Vec<LyricLine>> {
         if let Some(lines) = self.cache.get_lyrics(bvid, cid) {
             return Ok(lines);
         }
-        let lines = self.fetch_lyrics(bvid, cid).await?;
+        self.download_lyrics(aid, bvid, cid).await
+    }
+
+    /// Re-fetch lyrics for a page, discarding any cached copy first. Frontends
+    /// use this when the displayed lyrics look wrong.
+    pub async fn refresh_lyrics(&self, aid: i64, bvid: &str, cid: i64) -> Result<Vec<LyricLine>> {
+        self.cache.remove_lyrics(bvid, cid);
+        self.download_lyrics(aid, bvid, cid).await
+    }
+
+    async fn download_lyrics(&self, aid: i64, bvid: &str, cid: i64) -> Result<Vec<LyricLine>> {
+        let lines = self.fetch_lyrics(aid, bvid, cid).await?;
         self.cache.put_lyrics(bvid, cid, &lines);
         Ok(lines)
     }
 
-    async fn fetch_lyrics(&self, bvid: &str, cid: i64) -> Result<Vec<LyricLine>> {
-        let url = format!(
+    async fn fetch_lyrics(&self, aid: i64, bvid: &str, cid: i64) -> Result<Vec<LyricLine>> {
+        let plain_url = format!(
             "https://api.bilibili.com/x/player/v2?bvid={}&cid={cid}",
             encode_component(bvid)
         );
 
-        let mut subtitles = Vec::new();
-        for attempt in 0..2 {
-            let request_url = if attempt == 0 {
-                url.clone()
-            } else {
-                self.player_v2_wbi_url(bvid, cid)
-                    .await
-                    .unwrap_or_else(|_| url.clone())
+        let mut last_error = None;
+        let mut saw_response = false;
+        for attempt in 0..3 {
+            // The unsigned endpoint intermittently answers with a different
+            // video's subtitle list (an unrelated AI transcript cached under
+            // this song). The WBI-signed endpoint is stable, so prefer it and
+            // fall back only when signing itself fails.
+            let (request_url, trusted) = match self.player_v2_wbi_url(bvid, cid).await {
+                Ok(url) => (url, true),
+                Err(error) => {
+                    last_error = Some(error.context("字幕请求签名失败"));
+                    (plain_url.clone(), false)
+                }
             };
-            let resp: PlayerV2Response = self
-                .get_json(&request_url, None)
-                .await
-                .context("获取字幕信息失败")?;
 
-            if resp.code != 0 {
-                bail!(
-                    "获取字幕信息失败 {}: {}",
-                    resp.code,
-                    resp.message.unwrap_or_else(|| "未知错误".to_string())
-                );
+            let subtitles = match self.get_json::<PlayerV2Response>(&request_url, None).await {
+                Ok(resp) if resp.code == 0 => {
+                    saw_response = true;
+                    resp.data
+                        .and_then(|data| data.subtitle)
+                        .and_then(|subtitle| subtitle.subtitles)
+                        .unwrap_or_default()
+                }
+                Ok(resp) => {
+                    last_error = Some(anyhow::anyhow!(
+                        "获取字幕信息失败 {}: {}",
+                        resp.code,
+                        resp.message.unwrap_or_else(|| "未知错误".to_string())
+                    ));
+                    Vec::new()
+                }
+                Err(error) => {
+                    last_error = Some(error.context("获取字幕信息失败"));
+                    Vec::new()
+                }
+            };
+
+            let candidates = subtitles
+                .iter()
+                .filter(|subtitle| {
+                    subtitle
+                        .subtitle_url
+                        .as_deref()
+                        .is_some_and(|url| !url.is_empty())
+                        && (trusted || subtitle_belongs_to_video(aid, cid, subtitle))
+                })
+                .collect::<Vec<_>>();
+
+            if !candidates.is_empty() {
+                let chosen = choose_subtitle(&candidates).expect("字幕候选非空时必定能选出一条");
+                let Some(subtitle_url) = chosen.subtitle_url.as_deref() else {
+                    return Ok(Vec::new());
+                };
+                let body = self
+                    .get_text(&normalize_url(subtitle_url), None)
+                    .await
+                    .context("下载字幕失败")?;
+                return parse_lyrics(&body);
             }
 
-            subtitles = resp
-                .data
-                .and_then(|data| data.subtitle)
-                .and_then(|subtitle| subtitle.subtitles)
-                .unwrap_or_default();
-
-            // Bilibili sometimes returns subtitle entries with an empty URL
-            // (especially under rate limiting). Retry once before giving up.
-            let has_url = subtitles.iter().any(|subtitle| {
-                subtitle
-                    .subtitle_url
-                    .as_deref()
-                    .is_some_and(|url| !url.is_empty())
-            });
-            if has_url || subtitles.is_empty() {
+            // Entries with empty URLs are usually rate limiting; retry. A
+            // trusted empty list, on the other hand, really means this video
+            // has no subtitles.
+            if trusted && subtitles.is_empty() {
                 break;
             }
-            if attempt == 0 {
+            if attempt < 2 {
                 tokio::time::sleep(Duration::from_millis(500)).await;
             }
         }
 
-        let candidates = subtitles
-            .iter()
-            .filter(|subtitle| {
-                subtitle
-                    .subtitle_url
-                    .as_deref()
-                    .is_some_and(|url| !url.is_empty())
-            })
-            .collect::<Vec<_>>();
-
-        if candidates.is_empty() {
-            return Ok(Vec::new());
+        if saw_response {
+            Ok(Vec::new())
+        } else {
+            Err(last_error.unwrap_or_else(|| anyhow::anyhow!("获取字幕信息失败")))
         }
-
-        let chosen = candidates
-            .iter()
-            .copied()
-            .find(|subtitle| subtitle.lan == "zh-CN" || subtitle.lan == "ai-zh")
-            .or_else(|| {
-                candidates
-                    .iter()
-                    .copied()
-                    .find(|subtitle| subtitle.lan.starts_with("zh"))
-            })
-            .or_else(|| candidates.first().copied());
-
-        let Some(subtitle) = chosen else {
-            return Ok(Vec::new());
-        };
-        let Some(subtitle_url) = subtitle.subtitle_url.as_deref() else {
-            return Ok(Vec::new());
-        };
-
-        let body = self
-            .get_text(&normalize_url(subtitle_url), None)
-            .await
-            .context("下载字幕失败")?;
-        parse_lyrics(&body)
     }
 
     pub async fn image_bytes(&self, url: &str) -> Result<Vec<u8>> {
@@ -1230,8 +1468,19 @@ impl ApiClient {
         T: for<'de> Deserialize<'de>,
     {
         let body = self.get_text(url, extra_cookie).await?;
-        serde_json::from_str(&body)
-            .with_context(|| format!("响应不是 JSON（可能被风控）: {}", snippet(&body)))
+        match serde_json::from_str(&body) {
+            Ok(value) => Ok(value),
+            Err(error) => {
+                // A schema mismatch used to be reported as risk control; keep
+                // the distinction so the next API change is diagnosable.
+                let hint = if error.is_syntax() || error.is_eof() {
+                    "响应不是 JSON（可能被风控）"
+                } else {
+                    "响应结构与预期不符"
+                };
+                bail!("{hint}: {error}; 响应片段: {}", snippet(&body))
+            }
+        }
     }
 
     async fn combine_cookie(&self, extra: Option<&str>) -> Option<String> {
@@ -1253,6 +1502,81 @@ pub fn quality_label(id: i64) -> &'static str {
         30250 => "Dolby",
         30251 => "Hi-Res",
         _ => "AAC",
+    }
+}
+
+/// Add `track` to `candidates` unless an encoding with the same id is already
+/// queued (some responses list Dolby both in `audio` and `dolby`).
+fn push_unique(candidates: &mut Vec<AudioTrack>, track: Option<AudioTrack>) {
+    if let Some(track) = track
+        && !candidates.iter().any(|existing| existing.id == track.id)
+    {
+        candidates.push(track);
+    }
+}
+
+/// Order DASH candidates for a preference: the first entry is playback's first
+/// choice, later entries are fallbacks (premium -> AAC when entitlement is
+/// missing). Premium tracks are kept last for non-VIP `Auto` accounts so a
+/// video that only has premium audio still has a chance to play.
+fn order_audio_candidates(
+    aac: Vec<AudioTrack>,
+    flac: Option<AudioTrack>,
+    dolby: Vec<AudioTrack>,
+    preference: AudioQuality,
+    vip: bool,
+) -> Vec<AudioTrack> {
+    let best_aac = aac.into_iter().max_by_key(|stream| stream.bandwidth);
+    let best_dolby = dolby.into_iter().max_by_key(|stream| stream.bandwidth);
+    let mut candidates = Vec::new();
+
+    match preference {
+        AudioQuality::Auto if vip => {
+            push_unique(&mut candidates, flac);
+            push_unique(&mut candidates, best_dolby);
+            push_unique(&mut candidates, best_aac);
+        }
+        AudioQuality::Auto | AudioQuality::Aac => {
+            push_unique(&mut candidates, best_aac);
+            push_unique(&mut candidates, flac);
+            push_unique(&mut candidates, best_dolby);
+        }
+        AudioQuality::Dolby => {
+            push_unique(&mut candidates, best_dolby);
+            push_unique(&mut candidates, best_aac);
+            push_unique(&mut candidates, flac);
+        }
+        AudioQuality::HiRes => {
+            push_unique(&mut candidates, flac);
+            push_unique(&mut candidates, best_aac);
+            push_unique(&mut candidates, best_dolby);
+        }
+    }
+
+    candidates
+}
+
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum TrackKind {
+    Aac,
+    Dolby,
+    HiRes,
+}
+
+fn track_kind(id: i64) -> TrackKind {
+    match id {
+        30250 => TrackKind::Dolby,
+        30251 => TrackKind::HiRes,
+        _ => TrackKind::Aac,
+    }
+}
+
+/// The kind of track a preference would pick first when it is available.
+fn preferred_kind(preference: AudioQuality, vip: bool) -> TrackKind {
+    match (preference, vip) {
+        (AudioQuality::Auto, true) | (AudioQuality::HiRes, _) => TrackKind::HiRes,
+        (AudioQuality::Dolby, _) => TrackKind::Dolby,
+        _ => TrackKind::Aac,
     }
 }
 
@@ -1306,6 +1630,45 @@ fn lyric_items(value: &Value) -> Option<&Vec<Value>> {
             .find_map(|key| map.get(*key).and_then(lyric_items)),
         _ => None,
     }
+}
+
+/// Uploaded subtitles beat AI ones; within each group prefer Chinese. Uploaded
+/// tracks are the closest thing to real lyrics, while AI transcripts can be
+/// speech recognition of commentary instead of the song.
+fn choose_subtitle<'a>(candidates: &[&'a SubtitleRaw]) -> Option<&'a SubtitleRaw> {
+    let is_ai = |subtitle: &&SubtitleRaw| subtitle.lan.starts_with("ai-");
+
+    candidates
+        .iter()
+        .copied()
+        .find(|subtitle| !is_ai(subtitle) && subtitle.lan.starts_with("zh"))
+        .or_else(|| {
+            candidates
+                .iter()
+                .copied()
+                .find(|subtitle| subtitle.lan == "ai-zh")
+        })
+        .or_else(|| candidates.iter().copied().find(|subtitle| !is_ai(subtitle)))
+        .or_else(|| candidates.first().copied())
+}
+
+/// AI subtitle files are named `<aid><cid><hash>` under `/bfs/ai_subtitle/`.
+/// The unsigned `/x/player/v2` endpoint sometimes returns a well-formed URL
+/// that belongs to a different video; comparing the file name against this
+/// video's ids rejects those entries.
+fn subtitle_belongs_to_video(aid: i64, cid: i64, subtitle: &SubtitleRaw) -> bool {
+    let Some(url) = subtitle.subtitle_url.as_deref() else {
+        return false;
+    };
+    if !url.contains("/ai_subtitle/") {
+        return true;
+    }
+    if aid <= 0 {
+        return false;
+    }
+    let path = url.split(['?', '#']).next().unwrap_or(url);
+    let file = path.rsplit('/').next().unwrap_or(path);
+    file.starts_with(&format!("{aid}{cid}"))
 }
 
 /// Search results use unpadded durations like `419:2`; normalize them to `6:59:02`.
@@ -1376,7 +1739,57 @@ fn encode_component(value: &str) -> String {
     encoded
 }
 
-fn clean_title(title: &str) -> String {
+fn folder_create_body(title: &str, intro: &str, private: bool, csrf: &str) -> String {
+    format!(
+        "title={}&intro={}&privacy={}&csrf={}",
+        encode_component(title),
+        encode_component(intro),
+        if private { "1" } else { "0" },
+        encode_component(csrf)
+    )
+}
+
+fn folder_edit_body(media_id: i64, title: &str, csrf: &str) -> String {
+    format!(
+        "media_id={media_id}&title={}&csrf={}",
+        encode_component(title),
+        encode_component(csrf)
+    )
+}
+
+fn folder_delete_body(media_id: i64, csrf: &str) -> String {
+    format!("media_ids={media_id}&csrf={}", encode_component(csrf))
+}
+
+fn deal_body(folder_id: i64, aid: i64, add: bool, csrf: &str) -> String {
+    let (add_ids, del_ids) = if add {
+        (folder_id.to_string(), String::new())
+    } else {
+        (String::new(), folder_id.to_string())
+    };
+    format!(
+        "rid={aid}&type=2&add_media_ids={add_ids}&del_media_ids={del_ids}&csrf={}",
+        encode_component(csrf)
+    )
+}
+
+/// Check the `code` of a JSON API response and turn non-zero into an error
+/// carrying Bilibili's message.
+fn check_response(response: &Value, action: &str) -> Result<()> {
+    let code = response.get("code").and_then(Value::as_i64).unwrap_or(-1);
+    if code == 0 {
+        return Ok(());
+    }
+    bail!(
+        "{action} {code}: {}",
+        response
+            .get("message")
+            .and_then(Value::as_str)
+            .unwrap_or("未知错误")
+    )
+}
+
+pub(crate) fn clean_title(title: &str) -> String {
     let mut without_tags = String::with_capacity(title.len());
     let mut inside_tag = false;
     for character in title.chars() {
@@ -1407,7 +1820,7 @@ fn normalize_url(url: &str) -> String {
 
 /// Ask Bilibili's image service for a small thumbnail instead of the original
 /// 4K cover. The 32x16 terminal grid needs nothing larger.
-fn cover_thumbnail_url(url: &str) -> String {
+pub(crate) fn cover_thumbnail_url(url: &str) -> String {
     let url = normalize_url(url);
     if !url.contains("hdslb.com") || url.contains('@') {
         return url;
@@ -1432,27 +1845,53 @@ fn cookie_path(data_dir: &Path) -> PathBuf {
     data_dir.join(COOKIE_FILE_NAME)
 }
 
-fn sync_folder_path(data_dir: &Path) -> PathBuf {
-    data_dir.join(SYNC_FOLDER_FILE_NAME)
+/// Normalize the folder list returned by Bilibili (titles may contain HTML).
+fn playlist_folders(list: Vec<FavoriteFolderRaw>) -> Vec<FavoriteFolder> {
+    list.into_iter()
+        .map(|folder| FavoriteFolder {
+            id: folder.id,
+            title: clean_title(&folder.title),
+            count: folder.media_count,
+        })
+        .collect()
 }
 
-fn sync_folder_title() -> String {
-    std::env::var("BILI_SYNC_FOLDER")
+/// Hidden folder ids keyed by the account's `DedeUserID`.
+type HiddenPlaylists = BTreeMap<String, Vec<i64>>;
+
+fn hidden_playlists_path(data_dir: &Path) -> PathBuf {
+    data_dir.join(HIDDEN_PLAYLISTS_FILE_NAME)
+}
+
+fn load_hidden_playlists(data_dir: &Path) -> HiddenPlaylists {
+    std::fs::read_to_string(hidden_playlists_path(data_dir))
         .ok()
-        .map(|value| value.trim().to_string())
-        .filter(|value| !value.is_empty())
-        .unwrap_or_else(|| DEFAULT_SYNC_FOLDER_TITLE.to_string())
+        .and_then(|text| serde_json::from_str(&text).ok())
+        .unwrap_or_default()
 }
 
-fn load_sync_folder_id(data_dir: &Path) -> Option<i64> {
-    std::fs::read_to_string(sync_folder_path(data_dir))
-        .ok()
-        .and_then(|value| value.trim().parse::<i64>().ok())
-}
-
-fn save_sync_folder_id(data_dir: &Path, id: i64) -> Result<()> {
+fn save_hidden_playlists(data_dir: &Path, map: &HiddenPlaylists) -> Result<()> {
     std::fs::create_dir_all(data_dir).context("创建配置目录失败")?;
-    std::fs::write(sync_folder_path(data_dir), id.to_string()).context("写入云同步收藏夹 id 失败")
+    let bytes = serde_json::to_vec_pretty(map).context("序列化隐藏歌单失败")?;
+    let path = hidden_playlists_path(data_dir);
+    let tmp = path.with_extension(format!("tmp.{}", std::process::id()));
+    std::fs::write(&tmp, bytes).context("写入隐藏歌单失败")?;
+    std::fs::rename(&tmp, &path).context("提交隐藏歌单失败")
+}
+
+fn hidden_ids_for(map: &HiddenPlaylists, mid: i64) -> Vec<i64> {
+    map.get(&mid.to_string()).cloned().unwrap_or_default()
+}
+
+fn set_hidden_id(map: &mut HiddenPlaylists, mid: i64, folder_id: i64, hidden: bool) {
+    let ids = map.entry(mid.to_string()).or_default();
+    if hidden {
+        if !ids.contains(&folder_id) {
+            ids.push(folder_id);
+        }
+    } else {
+        ids.retain(|id| *id != folder_id);
+    }
 }
 
 fn load_saved_cookie(data_dir: &Path) -> Option<String> {
@@ -1550,18 +1989,56 @@ struct SearchResponse {
     data: Option<SearchData>,
 }
 
-#[derive(Deserialize)]
+#[derive(Deserialize, Default)]
 struct SearchData {
+    #[serde(default)]
     result: Option<Vec<SearchRaw>>,
+    #[serde(default)]
+    page: u32,
+    #[serde(default, rename = "pagesize")]
+    page_size: u32,
+    #[serde(default, rename = "numPages")]
+    num_pages: u32,
+    #[serde(default, rename = "numResults")]
+    num_results: u64,
 }
 
 #[derive(Deserialize)]
 struct SearchRaw {
+    #[serde(default)]
+    aid: i64,
+    /// Bilibili search results carry both `aid` and `id` (same value). `id` is
+    /// kept separately because `alias = "id"` makes serde reject the real
+    /// response with "duplicate field `aid`".
+    #[serde(default)]
+    id: Option<i64>,
     bvid: Option<String>,
     title: Option<String>,
     author: Option<String>,
     duration: Option<String>,
     pic: Option<String>,
+}
+
+impl SearchRaw {
+    fn into_item(self) -> Option<VideoItem> {
+        let bvid = self.bvid?;
+        if bvid.is_empty() {
+            return None;
+        }
+        let aid = if self.aid != 0 {
+            self.aid
+        } else {
+            self.id.unwrap_or(0)
+        };
+        Some(VideoItem {
+            aid,
+            bvid,
+            title: clean_title(self.title.as_deref().unwrap_or("")),
+            author: self.author.unwrap_or_default(),
+            duration: normalize_duration(self.duration.as_deref().unwrap_or("")),
+            pic: self.pic.as_deref().map(normalize_url),
+        })
+    }
 }
 
 #[derive(Deserialize)]
@@ -1654,7 +2131,19 @@ struct NavData {
     #[serde(rename = "isLogin", default)]
     is_login: bool,
     uname: Option<String>,
+    face: Option<String>,
+    /// 1 for an active 大会员; the nested `vip.status` carries the same flag.
+    #[serde(rename = "vipStatus", default)]
+    vip_status: i64,
+    #[serde(default)]
+    vip: Option<VipInfo>,
     wbi_img: Option<WbiImg>,
+}
+
+#[derive(Deserialize)]
+struct VipInfo {
+    #[serde(default)]
+    status: i64,
 }
 
 #[derive(Deserialize)]
@@ -1743,6 +2232,11 @@ struct FavoriteItemsData {
 
 #[derive(Deserialize)]
 struct FavoriteMediaRaw {
+    /// Bilibili `aid` of the video inside the folder.
+    #[serde(default)]
+    id: i64,
+    #[serde(default)]
+    attr: i64,
     bvid: Option<String>,
     #[serde(default)]
     title: String,
@@ -1752,6 +2246,25 @@ struct FavoriteMediaRaw {
     upper: Option<Owner>,
     #[serde(default, rename = "type")]
     media_type: i64,
+}
+
+impl FavoriteMediaRaw {
+    fn into_item(self) -> Option<VideoItem> {
+        // `attr != 0` marks invalid/deleted videos; only regular video
+        // entries (`type == 2`) are playable.
+        if self.media_type != 2 || self.attr != 0 {
+            return None;
+        }
+        let bvid = self.bvid.filter(|bvid| !bvid.is_empty())?;
+        Some(VideoItem {
+            aid: self.id,
+            bvid,
+            title: clean_title(&self.title),
+            author: self.upper.map(|upper| upper.name).unwrap_or_default(),
+            duration: format_secs(self.duration),
+            pic: self.cover.as_deref().map(normalize_url),
+        })
+    }
 }
 
 #[derive(Deserialize)]
@@ -1802,6 +2315,9 @@ mod tests {
             "data": {
                 "isLogin": true,
                 "uname": "tester",
+                "face": "https://i0.hdslb.com/bfs/face/abc.jpg",
+                "vipStatus": 1,
+                "vip": {"status": 1},
                 "wbi_img": {
                     "img_url": "https://i0.hdslb.com/bfs/wbi/aaa.png",
                     "sub_url": "https://i0.hdslb.com/bfs/wbi/bbb.png"
@@ -1813,7 +2329,113 @@ mod tests {
         let data = resp.data.expect("data 应存在");
         assert!(data.is_login, "isLogin 必须能反序列化");
         assert_eq!(data.uname.as_deref(), Some("tester"));
+        assert_eq!(
+            data.face.as_deref(),
+            Some("https://i0.hdslb.com/bfs/face/abc.jpg")
+        );
+        assert_eq!(data.vip_status, 1, "vipStatus 是 camelCase");
+        assert_eq!(data.vip.as_ref().map(|vip| vip.status), Some(1));
         assert!(data.wbi_img.is_some());
+    }
+
+    fn audio_track(id: i64, bandwidth: i64) -> AudioTrack {
+        AudioTrack {
+            id,
+            bandwidth,
+            base_url: None,
+            backup_url: Vec::new(),
+        }
+    }
+
+    fn candidate_ids(candidates: Vec<AudioTrack>) -> Vec<i64> {
+        candidates.into_iter().map(|track| track.id).collect()
+    }
+
+    #[test]
+    fn vip_auto_prefers_lossless_then_dolby_then_aac() {
+        let candidates = |vip| {
+            order_audio_candidates(
+                vec![audio_track(30216, 44_000), audio_track(30280, 204_800)],
+                Some(audio_track(30251, 1_400_000)),
+                vec![audio_track(30250, 448_000)],
+                AudioQuality::Auto,
+                vip,
+            )
+        };
+        assert_eq!(candidate_ids(candidates(true)), vec![30251, 30250, 30280]);
+        // Non-VIP keeps AAC first; premium tracks stay as a last resort.
+        assert_eq!(candidate_ids(candidates(false)), vec![30280, 30251, 30250]);
+    }
+
+    #[test]
+    fn explicit_preferences_fall_back_to_aac() {
+        let candidates = |preference| {
+            order_audio_candidates(
+                vec![audio_track(30280, 204_800)],
+                Some(audio_track(30251, 1_400_000)),
+                vec![audio_track(30250, 448_000)],
+                preference,
+                true,
+            )
+        };
+        assert_eq!(
+            candidate_ids(candidates(AudioQuality::Aac)),
+            vec![30280, 30251, 30250]
+        );
+        assert_eq!(
+            candidate_ids(candidates(AudioQuality::Dolby)),
+            vec![30250, 30280, 30251]
+        );
+        assert_eq!(
+            candidate_ids(candidates(AudioQuality::HiRes)),
+            vec![30251, 30280, 30250]
+        );
+    }
+
+    #[test]
+    fn audio_candidates_are_deduplicated() {
+        let candidates = order_audio_candidates(
+            vec![audio_track(30250, 448_000)],
+            None,
+            vec![audio_track(30250, 448_000)],
+            AudioQuality::Auto,
+            true,
+        );
+        assert_eq!(candidate_ids(candidates), vec![30250]);
+    }
+
+    #[test]
+    fn audio_quality_preference_roundtrips() {
+        for quality in [
+            AudioQuality::Auto,
+            AudioQuality::Aac,
+            AudioQuality::Dolby,
+            AudioQuality::HiRes,
+        ] {
+            assert_eq!(AudioQuality::parse(quality.as_str()), Some(quality));
+        }
+        assert_eq!(AudioQuality::parse("unknown"), None);
+        assert_eq!(AudioQuality::Auto.next(), AudioQuality::Aac);
+        assert_eq!(AudioQuality::Aac.next(), AudioQuality::Dolby);
+        assert_eq!(AudioQuality::Dolby.next(), AudioQuality::HiRes);
+        assert_eq!(AudioQuality::HiRes.next(), AudioQuality::Auto);
+    }
+
+    #[test]
+    fn play_mode_preference_roundtrips() {
+        for mode in [
+            PlayMode::Sequential,
+            PlayMode::RepeatAll,
+            PlayMode::RepeatOne,
+            PlayMode::Shuffle,
+        ] {
+            assert_eq!(PlayMode::parse(mode.as_str()), Some(mode));
+        }
+        assert_eq!(PlayMode::parse("unknown"), None);
+        assert_eq!(PlayMode::Sequential.next(), PlayMode::RepeatAll);
+        assert_eq!(PlayMode::RepeatAll.next(), PlayMode::RepeatOne);
+        assert_eq!(PlayMode::RepeatOne.next(), PlayMode::Shuffle);
+        assert_eq!(PlayMode::Shuffle.next(), PlayMode::Sequential);
     }
 
     #[test]
@@ -1875,6 +2497,55 @@ mod tests {
         assert_eq!(lines[0].text, "啊啊啊");
     }
 
+    fn subtitle(lan: &str, url: &str) -> SubtitleRaw {
+        SubtitleRaw {
+            lan: lan.to_string(),
+            subtitle_url: Some(url.to_string()),
+        }
+    }
+
+    #[test]
+    fn uploaded_subtitles_are_preferred_over_ai_ones() {
+        let ai = subtitle("ai-zh", "//aisubtitle.hdslb.com/bfs/ai_subtitle/prod/1");
+        let human = subtitle("zh-CN", "//i0.hdslb.com/bfs/subtitle/a.json");
+        let english = subtitle("en-US", "//i0.hdslb.com/bfs/subtitle/b.json");
+
+        let candidates = vec![&ai, &english, &human];
+        assert_eq!(choose_subtitle(&candidates).unwrap().lan, "zh-CN");
+
+        // AI Chinese still beats an uploaded track in another language and
+        // beats an AI transcript of another language.
+        let candidates = vec![&english, &ai];
+        assert_eq!(choose_subtitle(&candidates).unwrap().lan, "ai-zh");
+
+        let ai_english = subtitle("ai-en", "//aisubtitle.hdslb.com/bfs/ai_subtitle/prod/2");
+        let candidates = vec![&ai_english, &english];
+        assert_eq!(choose_subtitle(&candidates).unwrap().lan, "en-US");
+    }
+
+    #[test]
+    fn ai_subtitle_urls_are_checked_against_video_ids() {
+        let aid = 668_754_300;
+        let cid = 212_930_870;
+        let own = subtitle(
+            "ai-zh",
+            &format!("//aisubtitle.hdslb.com/bfs/ai_subtitle/prod/{aid}{cid}abc?auth_key=1"),
+        );
+        // Real shape of a mismatched entry: the file name is not this aid/cid.
+        let other = subtitle(
+            "ai-zh",
+            "//aisubtitle.hdslb.com/bfs/ai_subtitle/prod/11335002542065426408127325b4?auth_key=1",
+        );
+        // Uploaded stems carry no ids, so they cannot be checked here.
+        let uploaded = subtitle("zh-CN", "//i0.hdslb.com/bfs/subtitle/x.json");
+
+        assert!(subtitle_belongs_to_video(aid, cid, &own));
+        assert!(!subtitle_belongs_to_video(aid, cid, &other));
+        assert!(subtitle_belongs_to_video(aid, cid, &uploaded));
+        // Without an aid, an AI URL cannot be verified.
+        assert!(!subtitle_belongs_to_video(0, cid, &own));
+    }
+
     #[test]
     fn cookie_is_extracted_from_login_url() {
         let url = "https://www.bilibili.com/?SESSDATA=abc%2C123&bili_jct=xyz&DedeUserID=42&gourl=x";
@@ -1932,4 +2603,213 @@ mod tests {
             "https://i0.hdslb.com/a.jpg@640w_360h.jpg?x=1"
         );
     }
+
+    #[test]
+    fn search_results_carry_aid() {
+        let body = r#"{
+            "code": 0,
+            "data": {
+                "result": [
+                    {
+                        "id": 170001,
+                        "aid": 170001,
+                        "bvid": "BV1xx411c7mD",
+                        "title": "<em>晴</em>天",
+                        "author": "UP",
+                        "duration": "4:29",
+                        "pic": "//i0.hdslb.com/a.jpg"
+                    }
+                ]
+            }
+        }"#;
+        let resp: SearchResponse = serde_json::from_str(body).unwrap();
+        let raw = resp.data.unwrap().result.unwrap().remove(0);
+        let item = raw.into_item().unwrap();
+        assert_eq!(item.aid, 170001);
+        assert_eq!(item.bvid, "BV1xx411c7mD");
+        assert_eq!(item.title, "晴天");
+        assert_eq!(item.pic.as_deref(), Some("https://i0.hdslb.com/a.jpg"));
+    }
+
+    #[test]
+    fn search_response_carries_pagination() {
+        let body = r#"{
+            "code": 0,
+            "data": {
+                "page": 2,
+                "pagesize": 20,
+                "numResults": 57,
+                "numPages": 3,
+                "result": []
+            }
+        }"#;
+        let resp: SearchResponse = serde_json::from_str(body).unwrap();
+        let data = resp.data.unwrap();
+        assert_eq!(data.page, 2);
+        assert_eq!(data.page_size, 20);
+        assert_eq!(data.num_pages, 3);
+        assert_eq!(data.num_results, 57);
+    }
+
+    #[test]
+    fn search_aid_falls_back_to_id_when_aid_is_absent() {
+        let body = r#"{
+            "code": 0,
+            "data": {
+                "result": [
+                    {
+                        "id": 170002,
+                        "bvid": "BV1xx411c7mD",
+                        "title": "t",
+                        "author": "UP",
+                        "duration": "4:29"
+                    }
+                ]
+            }
+        }"#;
+        let resp: SearchResponse = serde_json::from_str(body).unwrap();
+        let raw = resp.data.unwrap().result.unwrap().remove(0);
+        assert_eq!(raw.into_item().unwrap().aid, 170002);
+    }
+
+    #[test]
+    fn favorite_media_carries_aid_and_skips_invalid_entries() {
+        let body = r#"{
+            "code": 0,
+            "data": {
+                "has_more": false,
+                "medias": [
+                    {
+                        "id": 90001,
+                        "type": 2,
+                        "title": "第一首",
+                        "duration": 213,
+                        "cover": "http://i1.hdslb.com/b.jpg",
+                        "upper": {"name": "UP"},
+                        "attr": 0,
+                        "bvid": "BV1xx411c7mD"
+                    },
+                    {
+                        "id": 90002,
+                        "type": 2,
+                        "title": "失效",
+                        "attr": 1,
+                        "bvid": "BV1xx411c7mE"
+                    },
+                    {
+                        "id": 90003,
+                        "type": 12,
+                        "title": "音频",
+                        "attr": 0,
+                        "bvid": "BV1xx411c7mF"
+                    }
+                ]
+            }
+        }"#;
+        let resp: FavoriteItemsResponse = serde_json::from_str(body).unwrap();
+        let medias = resp.data.unwrap().medias.unwrap();
+        assert_eq!(medias.len(), 3);
+        let item = medias.into_iter().next().unwrap().into_item().unwrap();
+        assert_eq!(item.aid, 90001);
+        assert_eq!(item.title, "第一首");
+        assert_eq!(item.duration, "3:33");
+
+        let resp: FavoriteItemsResponse = serde_json::from_str(body).unwrap();
+        let items = resp
+            .data
+            .unwrap()
+            .medias
+            .unwrap()
+            .into_iter()
+            .filter_map(FavoriteMediaRaw::into_item)
+            .collect::<Vec<_>>();
+        assert_eq!(items.len(), 1);
+        assert_eq!(items[0].bvid, "BV1xx411c7mD");
+    }
+
+    #[test]
+    fn favorite_write_bodies_are_form_encoded() {
+        assert_eq!(
+            folder_create_body("我的 歌单&more", "简介", false, "csrf token"),
+            "title=%E6%88%91%E7%9A%84%20%E6%AD%8C%E5%8D%95%26more&intro=%E7%AE%80%E4%BB%8B&privacy=0&csrf=csrf%20token"
+        );
+        assert_eq!(
+            folder_create_body("歌单", "简介", true, "tok"),
+            "title=%E6%AD%8C%E5%8D%95&intro=%E7%AE%80%E4%BB%8B&privacy=1&csrf=tok"
+        );
+        assert_eq!(
+            folder_edit_body(42, "新名字", "tok"),
+            "media_id=42&title=%E6%96%B0%E5%90%8D%E5%AD%97&csrf=tok"
+        );
+        assert_eq!(folder_delete_body(42, "tok"), "media_ids=42&csrf=tok");
+        assert_eq!(
+            deal_body(42, 90001, true, "tok"),
+            "rid=90001&type=2&add_media_ids=42&del_media_ids=&csrf=tok"
+        );
+        assert_eq!(
+            deal_body(42, 90001, false, "tok"),
+            "rid=90001&type=2&add_media_ids=&del_media_ids=42&csrf=tok"
+        );
+    }
+
+    #[test]
+    fn library_lists_every_favorite_folder() {
+        let body = r#"{
+            "code": 0,
+            "data": {
+                "list": [
+                    {"id": 1, "title": "默认收藏夹", "media_count": 0, "attr": 0},
+                    {"id": 2, "title": "我的歌单", "media_count": 3, "attr": 22},
+                    {"id": 3, "title": "稍后再听", "media_count": 1, "attr": 55}
+                ]
+            }
+        }"#;
+        let resp: FavoriteFoldersResponse = serde_json::from_str(body).unwrap();
+        let folders = playlist_folders(resp.data.expect("data").list.expect("list"));
+        assert_eq!(
+            folders
+                .iter()
+                .map(|folder| folder.title.as_str())
+                .collect::<Vec<_>>(),
+            vec!["默认收藏夹", "我的歌单", "稍后再听"]
+        );
+    }
+
+    #[test]
+    fn hidden_playlists_are_tracked_per_account() {
+        let mut map = HiddenPlaylists::new();
+        set_hidden_id(&mut map, 100, 7, true);
+        set_hidden_id(&mut map, 100, 8, true);
+        set_hidden_id(&mut map, 200, 9, true);
+        assert_eq!(hidden_ids_for(&map, 100), vec![7, 8]);
+        assert_eq!(hidden_ids_for(&map, 200), vec![9]);
+        assert!(hidden_ids_for(&map, 300).is_empty());
+
+        set_hidden_id(&mut map, 100, 7, false);
+        assert_eq!(hidden_ids_for(&map, 100), vec![8]);
+
+        // Unhiding something that was never hidden is a no-op.
+        set_hidden_id(&mut map, 100, 42, false);
+        assert_eq!(hidden_ids_for(&map, 100), vec![8]);
+    }
+
+    #[test]
+    fn hidden_playlist_file_roundtrips() {
+        let root = std::env::temp_dir().join(format!(
+            "bvox-hidden-test-{}-{}",
+            std::process::id(),
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .map(|duration| duration.as_nanos())
+                .unwrap_or(0)
+        ));
+        let mut map = HiddenPlaylists::new();
+        set_hidden_id(&mut map, 42, 7, true);
+        save_hidden_playlists(&root, &map).unwrap();
+
+        let loaded = load_hidden_playlists(&root);
+        assert_eq!(hidden_ids_for(&loaded, 42), vec![7]);
+        let _ = std::fs::remove_dir_all(root);
+    }
+
 }

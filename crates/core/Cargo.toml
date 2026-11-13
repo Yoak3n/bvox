@@ -1,8 +1,8 @@
 [package]
-name = "bili-core"
+name = "bvox-core"
 version.workspace = true
 edition.workspace = true
-description = "Platform-agnostic Bilibili music library (API client, cache, session state)"
+description = "Bvox core: platform-agnostic Bilibili music library (API client, cache, session state)"
 
 [lib]
 # cdylib: the Android shared library loaded via UniFFI/JNA.

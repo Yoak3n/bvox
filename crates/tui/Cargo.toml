@@ -1,17 +1,17 @@
 [package]
-name = "bili-music-tui"
+name = "bvox-tui"
 version.workspace = true
 edition.workspace = true
-description = "Bilibili audio-only music player with a terminal UI"
+description = "Bvox terminal frontend: Bilibili audio-only music player"
 
 [[bin]]
-name = "bili-music"
+name = "bvox"
 path = "src/main.rs"
 
 [dependencies]
 anyhow.workspace = true
 async-trait = "0.1"
-bili-core.workspace = true
+bvox-core.workspace = true
 image = { version = "0.25.10", default-features = false, features = ["png", "jpeg"] }
 ratatui = "0.30.2"
 ratatui-image = { version = "12.0.0-rc.3", default-features = false, features = ["crossterm"] }

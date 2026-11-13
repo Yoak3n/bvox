@@ -1,4 +1,4 @@
-package dev.yoa.bilimusic
+package dev.yoa.bvox
 
 import android.content.ComponentName
 import android.content.Context
@@ -10,13 +10,14 @@ import android.util.Log
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.media3.common.MediaItem
+import androidx.media3.common.MediaMetadata
 import androidx.media3.session.MediaController
 import androidx.media3.session.SessionToken
-import dev.yoa.bilimusic.core.Core
-import dev.yoa.bilimusic.core.CoreConfig
-import dev.yoa.bilimusic.core.CoreEvent
-import dev.yoa.bilimusic.core.CoreObserver
-import dev.yoa.bilimusic.core.PlayerBridge
+import dev.yoa.bvox.core.Core
+import dev.yoa.bvox.core.CoreConfig
+import dev.yoa.bvox.core.CoreEvent
+import dev.yoa.bvox.core.CoreObserver
+import dev.yoa.bvox.core.PlayerBridge
 import androidx.core.content.ContextCompat
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -29,7 +30,7 @@ import java.io.File
 /** Observable UI state fed by the core's events. */
 class AppModel {
     /** Latest `Core::snapshot`, refreshed on every StateChanged event. */
-    val snapshot = MutableStateFlow<dev.yoa.bilimusic.core.Snapshot?>(null)
+    val snapshot = MutableStateFlow<dev.yoa.bvox.core.Snapshot?>(null)
 
     /** Decoded cover keyed by `bvid#cid#page`; UI correlates with snapshot.coverKey. */
     val cover = MutableStateFlow<Pair<String, ImageBitmap?>?>(null)
@@ -38,7 +39,15 @@ class AppModel {
 /** Forwards ExoPlayer commands coming from the Rust core. */
 class ExoPlayerBridge : PlayerBridge {
 
-    private data class LoadRequest(val url: String, val userAgent: String, val referer: String)
+    private data class LoadRequest(
+        val url: String,
+        val userAgent: String,
+        val referer: String,
+        val title: String,
+        val artist: String,
+        val coverUrl: String?,
+        val startPosition: Double,
+    )
 
     private val mainHandler = Handler(Looper.getMainLooper())
 
@@ -73,14 +82,50 @@ class ExoPlayerBridge : PlayerBridge {
         } else {
             Uri.fromFile(File(request.url))
         }
-        val mediaItem = MediaItem.Builder().setUri(uri).build()
+        // The media notification and lock screen render these fields. Without
+        // them Media3 falls back to the app label, so the card looks like a
+        // generic foreground-service notice instead of a music player.
+        val metadata = MediaMetadata.Builder()
+            .setTitle(request.title)
+            .setArtist(request.artist)
+            // The lyric timeline swaps `artist` for the current line so lock
+            // screen / QS media controls show lyrics too. Keep the real artist
+            // here so it can be restored at any time.
+            .setAlbumArtist(request.artist)
+            .setAlbumTitle("Bvox")
+            .build()
+        val mediaItem = MediaItem.Builder()
+            .setUri(uri)
+            .setMediaMetadata(
+                if (request.coverUrl.isNullOrBlank()) {
+                    metadata
+                } else {
+                    // The service's bitmap loader carries the same UA/Referer
+                    // as the audio stack, so Bilibili's CDN accepts it.
+                    metadata.buildUpon().setArtworkUri(Uri.parse(request.coverUrl)).build()
+                }
+            )
+            .build()
         controller.setMediaItem(mediaItem)
         controller.prepare()
+        // Media3 keeps a seek made before the timeline is ready and applies it
+        // once the item is prepared; this is how a restored session resumes.
+        if (request.startPosition > 0.0) {
+            controller.seekTo((request.startPosition * 1000.0).toLong())
+        }
         controller.play()
     }
 
-    override fun load(url: String, userAgent: String, referer: String) {
-        val request = LoadRequest(url, userAgent, referer)
+    override fun load(
+        url: String,
+        userAgent: String,
+        referer: String,
+        title: String,
+        artist: String,
+        coverUrl: String?,
+        startPosition: Double,
+    ) {
+        val request = LoadRequest(url, userAgent, referer, title, artist, coverUrl, startPosition)
         mainHandler.post {
             if (controller == null) {
                 // The service/controller is still connecting; queue the first track.
@@ -148,7 +193,7 @@ class ObserverRelay(
                                     event.bytes.size,
                                 )?.asImageBitmap()
                             } catch (error: Exception) {
-                                Log.e("BiliMusic", "封面解码失败", error)
+                                Log.e("Bvox", "封面解码失败", error)
                                 null
                             }
                         }
@@ -156,7 +201,7 @@ class ObserverRelay(
                     }
                 }
             } catch (error: Exception) {
-                Log.e("BiliMusic", "处理核心事件失败", error)
+                Log.e("Bvox", "处理核心事件失败", error)
             }
         }
     }
@@ -168,11 +213,21 @@ object CoreHolder {
     lateinit var core: Core
         private set
 
+    /** False when the playback service runs without MainActivity having initialized the core. */
+    val isReady: Boolean
+        get() = ::core.isInitialized
+
     val model = AppModel()
     val bridge = ExoPlayerBridge()
 
     /** Non-null once the MediaController to PlaybackService is connected. */
     val controllerFlow = MutableStateFlow<MediaController?>(null)
+
+    /**
+     * Current lyric step published by `PlaybackService`, shared with the
+     * floating-overlay service. Null before the first line or with no media.
+     */
+    val lyricLine = MutableStateFlow<LyricUiLine?>(null)
 
     fun init(context: Context): AppModel {
         if (::core.isInitialized) {
@@ -180,9 +235,10 @@ object CoreHolder {
         }
         core = Core(
             config = CoreConfig(
-                dataDir = context.filesDir.resolve("bili-music").absolutePath,
-                cacheDir = context.cacheDir.resolve("bili-music").absolutePath,
-                cacheMb = 1024u,
+                dataDir = context.filesDir.resolve("bvox").absolutePath,
+                cacheDir = context.cacheDir.resolve("bvox").absolutePath,
+                cacheMb = CachePrefs.limitMb(context).toUInt(),
+                cacheMode = CachePrefs.mode(context),
             ),
             playerBridge = bridge,
             observer = ObserverRelay({ core }, model),
@@ -203,7 +259,7 @@ object CoreHolder {
                 bridge.attach(controller)
                 controllerFlow.value = controller
             } catch (error: Exception) {
-                Log.e("BiliMusic", "连接 MediaController 失败", error)
+                Log.e("Bvox", "连接 MediaController 失败", error)
             }
         }, ContextCompat.getMainExecutor(context))
     }

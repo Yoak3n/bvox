@@ -1,4 +1,4 @@
-package dev.yoa.bilimusic.ui
+package dev.yoa.bvox.ui
 
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.layout.BoxWithConstraints

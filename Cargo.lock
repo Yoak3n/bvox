@@ -170,37 +170,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "bili-core"
-version = "0.1.0"
-dependencies = [
- "anyhow",
- "async-trait",
- "md5",
- "qrcode",
- "reqwest",
- "serde",
- "serde_json",
- "tokio",
- "uniffi",
-]
-
-[[package]]
-name = "bili-music-tui"
-version = "0.1.0"
-dependencies = [
- "anyhow",
- "async-trait",
- "bili-core",
- "image",
- "libc",
- "ratatui",
- "ratatui-image",
- "serde_json",
- "tokio",
- "unicode-width",
-]
-
-[[package]]
 name = "bit-set"
 version = "0.5.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -253,6 +222,37 @@ name = "bumpalo"
 version = "3.20.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "72f5acc6cb2ba439de613abc23857ec3d78374d8ed5ac84e9d11336e87da8649"
+
+[[package]]
+name = "bvox-core"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "async-trait",
+ "md5",
+ "qrcode",
+ "reqwest",
+ "serde",
+ "serde_json",
+ "tokio",
+ "uniffi",
+]
+
+[[package]]
+name = "bvox-tui"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "async-trait",
+ "bvox-core",
+ "image",
+ "libc",
+ "ratatui",
+ "ratatui-image",
+ "serde_json",
+ "tokio",
+ "unicode-width",
+]
 
 [[package]]
 name = "by_address"

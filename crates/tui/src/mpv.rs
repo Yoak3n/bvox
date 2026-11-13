@@ -18,8 +18,8 @@ use tokio::process::{Child, Command};
 use tokio::sync::{Mutex, watch};
 use tokio::time::timeout;
 
-use bili_core::api::{REFERER, UA};
-use bili_core::player::{Player, PlayerConfig, PlayerState};
+use bvox_core::api::{REFERER, UA};
+use bvox_core::player::{Player, PlayerConfig, PlayerState};
 
 pub struct Mpv {
     child: Option<Child>,
@@ -34,7 +34,7 @@ pub struct Mpv {
 impl Mpv {
     pub fn new() -> Self {
         let socket =
-            std::env::temp_dir().join(format!("bili-music-mpv-{}.sock", std::process::id()));
+            std::env::temp_dir().join(format!("bvox-mpv-{}.sock", std::process::id()));
         Self {
             child: None,
             reader: None,
@@ -44,6 +44,10 @@ impl Mpv {
             config: PlayerConfig {
                 user_agent: UA.to_string(),
                 referer: REFERER.to_string(),
+                title: String::new(),
+                artist: String::new(),
+                cover_url: None,
+                start_position: 0.0,
             },
         }
     }
@@ -68,6 +72,12 @@ impl Mpv {
 
     async fn try_load(&mut self, url: &str) -> Result<()> {
         self.ensure_started().await?;
+        // `start` applies to the next loadfile only; every load sets it so a
+        // resume position cannot leak into the following track.
+        self.command(json!({
+            "command": ["set_property", "start", self.config.start_position.max(0.0)]
+        }))
+        .await?;
         self.command(json!({"command": ["loadfile", url]})).await?;
         self.command(json!({"command": ["set_property", "pause", false]}))
             .await?;
@@ -321,7 +331,7 @@ impl Drop for Mpv {
 /// `Player` implementation over the mpv IPC layer.
 ///
 /// Commands are serialized through an inner mutex; state snapshots are pushed
-/// to a `watch` channel every 500 ms so `bili_core::session::Session` sees the
+/// to a `watch` channel every 500 ms so `bvox_core::session::Session` sees the
 /// same event stream an ExoPlayer-backed player would produce.
 pub struct MpvPlayer {
     inner: Mutex<Mpv>,
