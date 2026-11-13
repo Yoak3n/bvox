@@ -74,7 +74,7 @@ fun LoginPanel(modal: LoginModal?, onDismiss: () -> Unit) {
                 Modifier
                     .fillMaxWidth(0.94f)
                     .widthIn(max = 520.dp)
-                    .fillMaxHeight(0.96f)
+                    .fillMaxHeight(0.82f)
             } else {
                 Modifier
                     .fillMaxWidth(0.92f)
