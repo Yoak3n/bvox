@@ -260,6 +260,8 @@ impl Session {
     /// pasted by the user), then refresh the account state.
     pub async fn set_cookie_text(&mut self, cookie: String) {
         self.api.set_cookie(cookie).await;
+        // The cached sync-folder id may belong to a previous account.
+        self.api.forget_sync_folder().await;
         match self.api.user_info().await {
             Ok(Some(user)) => {
                 self.app.user = Some(user.name.clone());
@@ -276,6 +278,15 @@ impl Session {
             }
         }
         spawn_sync_pull(&self.api, self.tx.clone(), true);
+    }
+
+    /// Sign out: forget the cookie, the cached account and the sync-folder id.
+    pub async fn logout(&mut self) {
+        self.api.clear_cookie().await;
+        self.api.forget_sync_folder().await;
+        self.app.user = None;
+        self.app.favorites = None;
+        self.app.set_status("已退出登录", false);
     }
 
     /// Stop playback entirely.
@@ -378,7 +389,21 @@ impl Session {
 fn spawn_user_info(api: &Arc<ApiClient>, tx: mpsc::UnboundedSender<Msg>) {
     let api = api.clone();
     tokio::spawn(async move {
-        let user = api.user_info().await.ok().flatten();
+        // The first request right after process start can lose to a slow
+        // network; retry a couple of times before giving up on the name.
+        let mut user = None;
+        for attempt in 0..3 {
+            match api.user_info().await {
+                Ok(info) => {
+                    user = info;
+                    break;
+                }
+                Err(_) if attempt < 2 => {
+                    tokio::time::sleep(Duration::from_secs(2)).await;
+                }
+                Err(_) => break,
+            }
+        }
         let _ = tx.send(Msg::UserInfo(user));
     });
 }

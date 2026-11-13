@@ -301,6 +301,12 @@ impl ApiClient {
         let _ = save_cookie(&self.paths.data_dir, &cookie);
     }
 
+    /// Forget the stored login (in memory and on disk).
+    pub async fn clear_cookie(&self) {
+        *self.cookie.lock().await = None;
+        let _ = std::fs::remove_file(cookie_path(&self.paths.data_dir));
+    }
+
     pub async fn user_info(&self) -> Result<Option<UserInfo>> {
         let resp: NavResponse = self
             .get_json("https://api.bilibili.com/x/web-interface/nav", None)
@@ -914,7 +920,9 @@ impl ApiClient {
         let _ = save_sync_folder_id(&self.paths.data_dir, id);
     }
 
-    async fn forget_sync_folder(&self) {
+    /// Drop the cached cloud-sync folder id (memory + disk). Needed when
+    /// switching accounts, since the id belongs to the previous account.
+    pub async fn forget_sync_folder(&self) {
         *self.sync_folder.lock().await = None;
         let _ = std::fs::remove_file(sync_folder_path(&self.paths.data_dir));
     }
@@ -1641,7 +1649,9 @@ struct NavResponse {
 
 #[derive(Deserialize)]
 struct NavData {
-    #[serde(default)]
+    // The API returns camelCase here (`isLogin`) while the rest of the
+    // payload uses snake_case.
+    #[serde(rename = "isLogin", default)]
     is_login: bool,
     uname: Option<String>,
     wbi_img: Option<WbiImg>,
@@ -1782,6 +1792,29 @@ struct RawLyric {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn nav_response_parses_camel_case_login_flag() {
+        // Real nav payload shape: `isLogin`/`uname`/`wbi_img` mixed cases.
+        let json = r#"{
+            "code": 0,
+            "message": "0",
+            "data": {
+                "isLogin": true,
+                "uname": "tester",
+                "wbi_img": {
+                    "img_url": "https://i0.hdslb.com/bfs/wbi/aaa.png",
+                    "sub_url": "https://i0.hdslb.com/bfs/wbi/bbb.png"
+                }
+            }
+        }"#;
+        let resp: NavResponse = serde_json::from_str(json).unwrap();
+        assert_eq!(resp.code, 0);
+        let data = resp.data.expect("data 应存在");
+        assert!(data.is_login, "isLogin 必须能反序列化");
+        assert_eq!(data.uname.as_deref(), Some("tester"));
+        assert!(data.wbi_img.is_some());
+    }
 
     #[test]
     fn wbi_mixin_key_matches_reference_vector() {

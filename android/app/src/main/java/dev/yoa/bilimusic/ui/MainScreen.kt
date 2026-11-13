@@ -6,14 +6,17 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.Logout
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.FavoriteBorder
 import androidx.compose.material.icons.filled.Pause
@@ -22,6 +25,7 @@ import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.SkipNext
 import androidx.compose.material.icons.filled.Sync
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
@@ -32,6 +36,7 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -56,6 +61,7 @@ fun BiliMusicApp(model: AppModel) {
     var showPlayer by remember { mutableStateOf(false) }
     var showBvDialog by remember { mutableStateOf(false) }
     var showLogin by remember { mutableStateOf(false) }
+    var showLogoutConfirm by remember { mutableStateOf(false) }
 
     // Close the login panel as soon as the core reports an account.
     LaunchedEffect(state?.user) {
@@ -69,10 +75,12 @@ fun BiliMusicApp(model: AppModel) {
     Box(modifier = Modifier.fillMaxSize()) {
         Scaffold { padding ->
             Column(modifier = Modifier.padding(padding)) {
-                Header(state)
-                Toolbar(
-                    notLoggedIn = notLoggedIn,
+                Header(
+                    state = state,
                     onLogin = { showLogin = true },
+                    onLogout = { showLogoutConfirm = true },
+                )
+                Toolbar(
                     onImportBv = { showBvDialog = true },
                     onFavorites = {
                         if (notLoggedIn) showLogin = true
@@ -106,6 +114,22 @@ fun BiliMusicApp(model: AppModel) {
         if (showLogin) {
             LoginPanel(state?.login) { showLogin = false }
         }
+        if (showLogoutConfirm) {
+            AlertDialog(
+                onDismissRequest = { showLogoutConfirm = false },
+                title = { Text("退出登录") },
+                text = { Text("确定要退出当前账号吗？退出后可登录其他账号。") },
+                confirmButton = {
+                    TextButton(onClick = {
+                        CoreHolder.core.logout()
+                        showLogoutConfirm = false
+                    }) { Text("退出") }
+                },
+                dismissButton = {
+                    TextButton(onClick = { showLogoutConfirm = false }) { Text("取消") }
+                },
+            )
+        }
         state?.favorites?.let { modal -> FavoritesDialog(modal) }
         if (showBvDialog) {
             BvImportDialog(onDismiss = { showBvDialog = false })
@@ -125,20 +149,49 @@ fun BiliMusicApp(model: AppModel) {
 }
 
 @Composable
-private fun Header(state: Snapshot?) {
+private fun Header(
+    state: Snapshot?,
+    onLogin: () -> Unit,
+    onLogout: () -> Unit,
+) {
     Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
             Text(
                 "♪ Bili Music",
                 style = MaterialTheme.typography.titleLarge,
                 color = MaterialTheme.colorScheme.primary,
             )
-            state?.user?.let { user ->
+            Spacer(modifier = Modifier.weight(1f))
+            val user = state?.user
+            if (user != null) {
                 Text(
-                    "  @$user",
+                    "@$user",
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.tertiary,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.padding(end = 4.dp),
                 )
+                IconButton(onClick = onLogout) {
+                    Icon(
+                        Icons.AutoMirrored.Filled.Logout,
+                        contentDescription = "退出登录",
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+            } else {
+                TextButton(onClick = onLogin) {
+                    Icon(
+                        Icons.Filled.Person,
+                        contentDescription = null,
+                        modifier = Modifier.size(18.dp),
+                    )
+                    Spacer(modifier = Modifier.width(4.dp))
+                    Text("登录")
+                }
             }
         }
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -159,8 +212,6 @@ private fun Header(state: Snapshot?) {
 
 @Composable
 private fun Toolbar(
-    notLoggedIn: Boolean,
-    onLogin: () -> Unit,
     onImportBv: () -> Unit,
     onFavorites: () -> Unit,
     onSync: () -> Unit,
@@ -193,11 +244,6 @@ private fun Toolbar(
             }
             IconButton(onClick = onImportBv) {
                 Icon(Icons.Filled.Add, contentDescription = "导入 BV 号/链接")
-            }
-            if (notLoggedIn) {
-                IconButton(onClick = onLogin) {
-                    Icon(Icons.Filled.Person, contentDescription = "登录", tint = MaterialTheme.colorScheme.primary)
-                }
             }
             IconButton(onClick = onFavorites) {
                 Icon(Icons.Filled.FavoriteBorder, contentDescription = "收藏夹导入")

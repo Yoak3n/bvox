@@ -327,6 +327,11 @@ impl Core {
         });
     }
 
+    /// Sign out (for switching accounts).
+    pub fn logout(&self) {
+        self.run(|session| async move { session.lock().await.logout().await });
+    }
+
     pub fn open_favorites(&self) {
         self.run(move |session| async move { session.lock().await.favorites_open().await });
     }

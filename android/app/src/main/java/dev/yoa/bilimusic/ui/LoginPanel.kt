@@ -124,15 +124,20 @@ fun LoginPanel(modal: LoginModal?, onDismiss: () -> Unit) {
 @Composable
 private fun WebViewLogin(onCookie: (String) -> Unit, modifier: Modifier = Modifier) {
     // Poll the WebView cookie jar; SESSDATA appears once the user finishes
-    // logging in on the passport page.
+    // logging in. The rest of the cookie set (bili_jct, DedeUserID, ...) is
+    // written a beat later on the redirect, so wait briefly and gather the
+    // jar from every bilibili domain before handing it to the core.
     LaunchedEffect(Unit) {
         while (isActive) {
             delay(1000)
             val cookie = CookieManager.getInstance()
                 .getCookie("https://www.bilibili.com")
             if (cookie != null && cookie.contains("SESSDATA=")) {
-                onCookie(cookie)
-                break
+                val full = readFullCookie()
+                if (full != null) {
+                    onCookie(full)
+                    break
+                }
             }
         }
     }
@@ -165,6 +170,32 @@ private fun WebViewLogin(onCookie: (String) -> Unit, modifier: Modifier = Modifi
             webView.destroy()
         },
     )
+}
+
+/**
+ * Merge cookies from every bilibili domain. The login redirect sets the full
+ * cookie set (bili_jct, DedeUserID, ...) a beat after SESSDATA appears, so a
+ * short wait plus a multi-domain gather avoids saving a partial cookie.
+ */
+private suspend fun readFullCookie(): String? {
+    delay(1200)
+    val manager = CookieManager.getInstance()
+    val parts = linkedMapOf<String, String>()
+    for (url in listOf(
+        "https://www.bilibili.com",
+        "https://passport.bilibili.com",
+        "https://api.bilibili.com",
+    )) {
+        val cookie = manager.getCookie(url) ?: continue
+        for (pair in cookie.split(";")) {
+            val trimmed = pair.trim()
+            val index = trimmed.indexOf('=')
+            if (index > 0) {
+                parts[trimmed.substring(0, index)] = trimmed
+            }
+        }
+    }
+    return if (parts.isEmpty()) null else parts.values.joinToString("; ")
 }
 
 @Composable
