@@ -17,6 +17,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.FavoriteBorder
 import androidx.compose.material.icons.filled.Pause
+import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.SkipNext
@@ -32,6 +33,7 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -53,15 +55,33 @@ fun BiliMusicApp(model: AppModel) {
 
     var showPlayer by remember { mutableStateOf(false) }
     var showBvDialog by remember { mutableStateOf(false) }
+    var showLogin by remember { mutableStateOf(false) }
+
+    // Close the login panel as soon as the core reports an account.
+    LaunchedEffect(state?.user) {
+        if (state?.user != null) {
+            showLogin = false
+        }
+    }
+
+    val notLoggedIn = state?.user == null
 
     Box(modifier = Modifier.fillMaxSize()) {
         Scaffold { padding ->
             Column(modifier = Modifier.padding(padding)) {
                 Header(state)
                 Toolbar(
+                    notLoggedIn = notLoggedIn,
+                    onLogin = { showLogin = true },
                     onImportBv = { showBvDialog = true },
-                    onFavorites = { CoreHolder.core.openFavorites() },
-                    onSync = { CoreHolder.core.syncPull() },
+                    onFavorites = {
+                        if (notLoggedIn) showLogin = true
+                        else CoreHolder.core.openFavorites()
+                    },
+                    onSync = {
+                        if (notLoggedIn) showLogin = true
+                        else CoreHolder.core.syncPull()
+                    },
                 )
                 ResultsList(state, modifier = Modifier.weight(1f))
             }
@@ -83,7 +103,9 @@ fun BiliMusicApp(model: AppModel) {
         }
 
         // Core-driven modals
-        state?.login?.let { modal -> LoginDialog(modal) }
+        if (showLogin) {
+            LoginPanel(state?.login) { showLogin = false }
+        }
         state?.favorites?.let { modal -> FavoritesDialog(modal) }
         if (showBvDialog) {
             BvImportDialog(onDismiss = { showBvDialog = false })
@@ -136,7 +158,13 @@ private fun Header(state: Snapshot?) {
 }
 
 @Composable
-private fun Toolbar(onImportBv: () -> Unit, onFavorites: () -> Unit, onSync: () -> Unit) {
+private fun Toolbar(
+    notLoggedIn: Boolean,
+    onLogin: () -> Unit,
+    onImportBv: () -> Unit,
+    onFavorites: () -> Unit,
+    onSync: () -> Unit,
+) {
     var keyword by remember { mutableStateOf("") }
     Column(modifier = Modifier.padding(horizontal = 16.dp)) {
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
@@ -165,6 +193,11 @@ private fun Toolbar(onImportBv: () -> Unit, onFavorites: () -> Unit, onSync: () 
             }
             IconButton(onClick = onImportBv) {
                 Icon(Icons.Filled.Add, contentDescription = "导入 BV 号/链接")
+            }
+            if (notLoggedIn) {
+                IconButton(onClick = onLogin) {
+                    Icon(Icons.Filled.Person, contentDescription = "登录", tint = MaterialTheme.colorScheme.primary)
+                }
             }
             IconButton(onClick = onFavorites) {
                 Icon(Icons.Filled.FavoriteBorder, contentDescription = "收藏夹导入")

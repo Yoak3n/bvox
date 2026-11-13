@@ -9,11 +9,11 @@
 
 ## 功能
 
-- 关键词搜索 B 站视频（WBI 签名 + `buvid3`，无需登录）
+- 关键词搜索 B 站音乐区（分区 3，WBI 签名 + `buvid3`，无需登录）
 - 只播放音频，`mpv --no-video`，不消耗视频带宽
-- 搜索结果列表、上下选择、Enter 播放
+- 搜索结果列表、上下选择、Enter 播放（搜到的歌播完即止，不会顺着结果列表自动连播）
 - 暂停/继续、前进/后退 5 秒、音量调节
-- 自动连播：多 P 视频按 P 顺序播完，再切到下一条
+- 自动连播：多 P 视频按 P 顺序播完；收藏夹/云同步列表播完一条自动切下一条
 - `n` / `p` 手动切歌，跨 P 和跨列表都支持
 - 音质自动取最高可用 AAC（通常 192K）
 - 扫码登录，Cookie 保存到 `~/.config/bili-music/cookie`（0600）
@@ -135,8 +135,10 @@ export BILI_COOKIE='SESSDATA=...; bili_jct=...; DedeUserID=...'
 
 ```text
 GET https://api.bilibili.com/x/web-interface/wbi/search/type
-    ?search_type=video&keyword=...&page=1&wts=...&w_rid=...
+    ?search_type=video&keyword=...&page=1&tids=3&wts=...&w_rid=...
 ```
+
+`tids=3` 把结果限定在音乐分区，避免搜歌时混进其他分区的视频。
 
 签名步骤（`src/api.rs`）：
 

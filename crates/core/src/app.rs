@@ -61,6 +61,10 @@ pub struct App {
     pub input_mode: InputMode,
     pub results: Vec<VideoItem>,
     pub results_title: String,
+    /// True when the list is a playlist that should roll on to the next
+    /// entry at track end (favorites, cloud sync). Search results are
+    /// pick-one: they stop after the track instead of auto-playing on.
+    pub queue_auto_advance: bool,
     pub selected: Option<usize>,
     pub current: Option<usize>,
     pub status: String,
@@ -103,6 +107,7 @@ impl App {
             input_mode: InputMode::None,
             results: Vec::new(),
             results_title: "搜索结果".to_string(),
+            queue_auto_advance: false,
             selected: None,
             current: None,
             status: "按 / 搜索，b 导入 BV，g 登录，f 收藏夹，y 云同步".to_string(),
@@ -243,7 +248,7 @@ impl App {
             Ok(items) => {
                 let count = items.len();
                 self.favorites = None;
-                self.replace_results(items, &format!("收藏夹 · {folder_title}"));
+                self.replace_results(items, &format!("收藏夹 · {folder_title}"), true);
                 self.set_status(&format!("已导入「{folder_title}」{count} 首"), false);
             }
             Err(error) => {
@@ -263,12 +268,12 @@ impl App {
         self.loading = false;
         match result {
             Ok(items) if items.is_empty() => {
-                self.replace_results(items, "搜索结果");
+                self.replace_results(items, "搜索结果", false);
                 self.set_status("没有搜索到结果", true);
             }
             Ok(items) => {
                 let count = items.len();
-                self.replace_results(items, "搜索结果");
+                self.replace_results(items, "搜索结果", false);
                 self.set_status(&format!("找到 {count} 条结果，Enter 播放"), false);
             }
             Err(error) => {
@@ -314,7 +319,7 @@ impl App {
                     if auto {
                         return;
                     }
-                    self.replace_results(items, &format!("云同步 · {title}"));
+                    self.replace_results(items, &format!("云同步 · {title}"), true);
                     self.set_status("云同步收藏夹还是空的，按 b 导入 BV 会自动加入", false);
                     return;
                 }
@@ -325,7 +330,7 @@ impl App {
                 {
                     self.set_status(&format!("云同步「{title}」{count} 首，按 y 载入"), false);
                 } else {
-                    self.replace_results(items, &format!("云同步 · {title}"));
+                    self.replace_results(items, &format!("云同步 · {title}"), true);
                     self.set_status(&format!("已从云同步载入 {count} 首"), false);
                 }
             }
@@ -457,8 +462,20 @@ impl App {
         eof
     }
 
+    /// Auto-advance at the end of a track. Pages of a multi-page video always
+    /// roll on; crossing into the next list entry only happens for real
+    /// playlists (favorites, cloud sync), so search results stop after the
+    /// selected track.
+    pub fn auto_advance(&mut self) -> Option<PlayRequest> {
+        if self.page + 1 < self.page_count || self.queue_auto_advance {
+            self.step(1)
+        } else {
+            None
+        }
+    }
+
     /// Move forward/backward by one track. A multi-page video is treated as
-    /// several consecutive tracks: pages first, then the next search result.
+    /// several consecutive tracks: pages first, then the next queue entry.
     pub fn step(&mut self, delta: isize) -> Option<PlayRequest> {
         if self.results.is_empty() {
             return None;
@@ -581,10 +598,11 @@ impl App {
         modal.selected = Some(next);
     }
 
-    fn replace_results(&mut self, items: Vec<VideoItem>, title: &str) {
+    fn replace_results(&mut self, items: Vec<VideoItem>, title: &str, auto_advance: bool) {
         let empty = items.is_empty();
         self.results = items;
         self.results_title = title.to_string();
+        self.queue_auto_advance = auto_advance;
         self.current = None;
         self.page = 0;
         self.page_count = 0;
@@ -628,4 +646,56 @@ fn parse_duration(text: &str) -> f64 {
     text.split(':')
         .filter_map(|part| part.parse::<f64>().ok())
         .fold(0.0, |total, part| total * 60.0 + part)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn item(bvid: &str) -> VideoItem {
+        VideoItem {
+            bvid: bvid.to_string(),
+            title: bvid.to_string(),
+            author: String::new(),
+            duration: "0:00".to_string(),
+            pic: None,
+        }
+    }
+
+    fn queue(auto_advance: bool) -> App {
+        let mut app = App::new();
+        app.replace_results(vec![item("BV1"), item("BV2")], "测试", auto_advance);
+        app.play_at(0);
+        app
+    }
+
+    #[test]
+    fn search_queues_stop_at_track_end() {
+        let mut app = queue(false);
+        assert!(app.auto_advance().is_none());
+
+        // Manual next still walks the list.
+        let request = app.step(1).expect("manual next should work");
+        assert_eq!(request.item.bvid, "BV2");
+    }
+
+    #[test]
+    fn playlists_roll_on_to_the_next_entry() {
+        let mut app = queue(true);
+        let request = app.auto_advance().expect("playlist should advance");
+        assert_eq!(request.item.bvid, "BV2");
+        assert_eq!(request.page_index, 0);
+    }
+
+    #[test]
+    fn multi_page_videos_auto_continue_inside_search_results() {
+        let mut app = queue(false);
+        app.page = 0;
+        app.page_count = 2;
+        app.now_playing = Some(item("BV1"));
+
+        let request = app.auto_advance().expect("pages should keep playing");
+        assert_eq!(request.item.bvid, "BV1");
+        assert_eq!(request.page_index, 1);
+    }
 }

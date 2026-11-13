@@ -319,6 +319,14 @@ impl Core {
         self.run(|session| async move { session.lock().await.close_favorites() });
     }
 
+    /// Cookie-based login (in-app WebView or pasted text): persists the
+    /// cookie, refreshes the account and pulls the cloud-sync folder.
+    pub fn set_cookie(&self, cookie: String) {
+        self.run(move |session| async move {
+            session.lock().await.set_cookie_text(cookie).await
+        });
+    }
+
     pub fn open_favorites(&self) {
         self.run(move |session| async move { session.lock().await.favorites_open().await });
     }

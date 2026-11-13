@@ -181,7 +181,7 @@ impl Session {
             self.app.open_favorites();
             spawn_folders(&self.api, self.tx.clone());
         } else {
-            self.app.set_status("请先按 g 扫码登录", true);
+            self.app.set_status("请先登录", true);
         }
     }
 
@@ -199,7 +199,7 @@ impl Session {
             return;
         }
         if !self.api.has_cookie().await {
-            self.app.set_status("请先按 g 扫码登录", true);
+            self.app.set_status("请先登录", true);
         } else {
             self.app.set_status("正在从云同步加载…", false);
             spawn_sync_pull(&self.api, self.tx.clone(), false);
@@ -254,6 +254,28 @@ impl Session {
     /// Close the favorites modal without importing.
     pub fn close_favorites(&mut self) {
         self.app.favorites = None;
+    }
+
+    /// Install a cookie obtained outside the QR flow (in-app WebView or
+    /// pasted by the user), then refresh the account state.
+    pub async fn set_cookie_text(&mut self, cookie: String) {
+        self.api.set_cookie(cookie).await;
+        match self.api.user_info().await {
+            Ok(Some(user)) => {
+                self.app.user = Some(user.name.clone());
+                self.app
+                    .set_status(&format!("已登录：{}", user.name), false);
+            }
+            Ok(None) => {
+                self.app
+                    .set_status("Cookie 已保存，但未能确认登录状态", true);
+            }
+            Err(error) => {
+                self.app
+                    .set_status(&format!("Cookie 已保存，用户信息获取失败: {error:#}"), true);
+            }
+        }
+        spawn_sync_pull(&self.api, self.tx.clone(), true);
     }
 
     /// Stop playback entirely.
@@ -331,13 +353,19 @@ impl Session {
         }
 
         // Auto-advance once per track end. take_eof() clears the flag so this
-        // cannot loop on the same track.
+        // cannot loop on the same track. Search results are pick-one lists:
+        // they keep playing pages within one video but stop afterwards.
         if self.app.take_eof() && !self.app.pending_play {
-            if let Some(request) = self.app.step(1) {
+            if let Some(request) = self.app.auto_advance() {
                 self.play(request);
             } else {
                 self.app.has_media = false;
-                self.app.set_status("播放列表结束", false);
+                let message = if self.app.queue_auto_advance {
+                    "播放列表结束"
+                } else {
+                    "播放结束"
+                };
+                self.app.set_status(message, false);
             }
         }
 

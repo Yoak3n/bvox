@@ -28,6 +28,11 @@ const MIXIN_KEY_ENC_TAB: [usize; 64] = [
 ];
 
 pub const CONFIG_DIR_NAME: &str = "bili-music";
+
+/// Bilibili's music top-level partition ("音乐", zone id 3). Searches are
+/// restricted to it so results stay playable music instead of videos from
+/// every zone.
+const MUSIC_TID: &str = "3";
 const COOKIE_FILE_NAME: &str = "cookie";
 const SYNC_FOLDER_FILE_NAME: &str = "sync_folder";
 const DEFAULT_SYNC_FOLDER_TITLE: &str = "bili-music 云同步";
@@ -404,6 +409,7 @@ impl ApiClient {
                 ("search_type", "video".to_string()),
                 ("keyword", keyword.to_string()),
                 ("page", "1".to_string()),
+                ("tids", MUSIC_TID.to_string()),
             ],
             &mixin_key,
         );

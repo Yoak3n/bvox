@@ -8,11 +8,8 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.Icon
 import androidx.compose.material3.ListItem
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
@@ -28,53 +25,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import dev.yoa.bilimusic.CoreHolder
 import dev.yoa.bilimusic.core.FavoritesState
-import dev.yoa.bilimusic.core.LoginModal
-
-/** QR login modal, driven by `snapshot.login` (core state). */
-@Composable
-fun LoginDialog(modal: LoginModal) {
-    AlertDialog(
-        onDismissRequest = { CoreHolder.core.cancelLogin() },
-        title = { Text("扫码登录") },
-        text = {
-            Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                if (modal.qr.isEmpty()) {
-                    Box(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(24.dp),
-                        contentAlignment = Alignment.Center,
-                    ) {
-                        CircularProgressIndicator()
-                    }
-                } else {
-                    QrCodeView(
-                        matrix = modal.qr,
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(vertical = 8.dp),
-                    )
-                }
-                Text(
-                    modal.status,
-                    modifier = Modifier.padding(vertical = 8.dp),
-                    style = MaterialTheme.typography.bodySmall,
-                )
-            }
-        },
-        confirmButton = {
-            TextButton(onClick = { CoreHolder.core.startLogin() }) {
-                Icon(Icons.Filled.Refresh, contentDescription = null)
-                Text(" 重新生成")
-            }
-        },
-        dismissButton = {
-            TextButton(onClick = { CoreHolder.core.cancelLogin() }) {
-                Text("关闭")
-            }
-        },
-    )
-}
 
 /** Favorites folder picker, driven by `snapshot.favorites` (core state). */
 @Composable
