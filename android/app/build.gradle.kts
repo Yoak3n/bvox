@@ -26,8 +26,8 @@ android {
         applicationId = "dev.yoa.bvox"
         minSdk = 23
         targetSdk = 36
-        versionCode = 2
-        versionName = "0.1.1"
+        versionCode = 3
+        versionName = "0.1.2"
         ndkVersion = "29.0.14206865"
     }
 
