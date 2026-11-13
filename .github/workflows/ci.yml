@@ -35,12 +35,45 @@ jobs:
       - name: Test
         run: cargo test --workspace --locked
 
+  tui:
+    name: TUI binary
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Set up Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache Rust build
+        uses: Swatinem/rust-cache@v2
+        with:
+          key: tui
+
+      - name: Build
+        run: cargo build --release --locked -p bvox-tui
+
+      - name: Package
+        run: |
+          VERSION=$(cargo metadata --no-deps --format-version 1 \
+            | jq -r '.packages[] | select(.name == "bvox-tui") | .version')
+          mkdir -p dist
+          tar -czf "dist/bvox-v${VERSION}-x86_64-linux.tar.gz" -C target/release bvox
+          ls -lh dist
+
+      - name: Upload TUI binary
+        uses: actions/upload-artifact@v7
+        with:
+          name: bvox-tui
+          path: dist/bvox-*-x86_64-linux.tar.gz
+          if-no-files-found: error
+          retention-days: 14
+
   android:
     name: Android APK
     runs-on: ubuntu-latest
     timeout-minutes: 60
-    permissions:
-      contents: write
     steps:
       - name: Checkout
         uses: actions/checkout@v7
@@ -101,6 +134,12 @@ jobs:
           EOF
           echo "BVOX_SIGNED=true" >> "$GITHUB_ENV"
 
+      - name: Require signing for tagged releases
+        if: startsWith(github.ref, 'refs/tags/v') && env.BVOX_SIGNED != 'true'
+        run: |
+          echo "::error::Tagged releases need the keystore secrets; refusing to publish an unsigned APK."
+          exit 1
+
       - name: Build debug APK
         working-directory: android
         run: ./gradlew assembleDebug --stacktrace
@@ -118,30 +157,60 @@ jobs:
           echo "Verifying $APK"
           "$ANDROID_HOME/build-tools/36.0.0/apksigner" verify --print-certs "$APK"
 
-      - name: Write APK checksum
-        if: startsWith(github.ref, 'refs/tags/v') && env.BVOX_SIGNED == 'true'
-        working-directory: android
+      - name: Upload APKs
+        uses: actions/upload-artifact@v7
+        with:
+          name: bvox-apk-${{ github.sha }}
+          path: android/app/build/outputs/apk/**/*.apk
+          if-no-files-found: error
+          retention-days: 14
+
+  release:
+    name: Publish release
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: [android, tui]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Download APK artifact
+        uses: actions/download-artifact@v8
+        with:
+          name: bvox-apk-${{ github.sha }}
+          path: artifacts/apk
+
+      - name: Download TUI artifact
+        uses: actions/download-artifact@v8
+        with:
+          name: bvox-tui
+          path: artifacts/tui
+
+      - name: Collect release files
         run: |
-          cd app/build/outputs/apk/release
-          sha256sum *.apk | tee SHA256SUMS.txt
+          mkdir -p release
+          cp artifacts/apk/release/*.apk release/
+          cp artifacts/tui/*.tar.gz release/
+          cd release
+          sha256sum *.apk *.tar.gz > SHA256SUMS.txt
+          cat SHA256SUMS.txt
 
       - name: Publish GitHub Release
-        if: startsWith(github.ref, 'refs/tags/v') && env.BVOX_SIGNED == 'true'
         uses: softprops/action-gh-release@v3
         with:
           name: Bvox ${{ github.ref_name }}
           tag_name: ${{ github.ref_name }}
-          files: |
-            android/app/build/outputs/apk/release/*.apk
-            android/app/build/outputs/apk/release/SHA256SUMS.txt
+          files: release/*
           fail_on_unmatched_files: true
           body: |
             ### 安卓
             - `bvox-v*-release.apk`：正式签名，Android 6.0+（arm64-v8a / x86_64）
-            - `SHA256SUMS.txt`：APK 的 SHA-256 校验
 
             ### 桌面端
-            Linux 从源码构建：`cargo build --release`，需要 `mpv`。
+            - `bvox-v*-x86_64-linux.tar.gz`：预编译的 TUI，解压后运行 `./bvox`（需要系统安装 `mpv`）
+            - 也可以从源码构建：`cargo build --release`
+
+            ### 校验
+            - `SHA256SUMS.txt`：所有发布文件的 SHA-256
 
             ### 主要功能
             - 搜索 B 站音乐区，只拉取 DASH 音频流
@@ -151,11 +220,3 @@ jobs:
             - 启动恢复上次队列与进度（保持暂停）
             - 歌词视图；安卓支持通知栏 / 锁屏 / 悬浮歌词
             - 桌面端 ratatui + mpv，安卓端 Jetpack Compose + Media3
-
-      - name: Upload APKs
-        uses: actions/upload-artifact@v7
-        with:
-          name: bvox-apk-${{ github.sha }}
-          path: android/app/build/outputs/apk/**/*.apk
-          if-no-files-found: error
-          retention-days: 14
