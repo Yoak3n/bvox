@@ -12,8 +12,28 @@ import kotlinx.coroutines.withContext
 import java.net.HttpURLConnection
 import java.net.URL
 
-/** Small in-memory cache so tab switches do not re-download avatars. */
-private val remoteImageCache = LruCache<String, ImageBitmap>(24)
+/** Small in-memory cache so tab switches and list scrolling do not re-download images. */
+private val remoteImageCache = LruCache<String, ImageBitmap>(64)
+
+/**
+ * Ask the CDN for a list-sized thumbnail instead of the full cover. Covers are
+ * 16:9 stills; a 320px wide version stays sharp in the square row artwork even
+ * on 3x screens, while keeping the decode cost small.
+ */
+internal fun listThumbnailUrl(url: String?): String? = url
+    ?.trim()
+    ?.takeIf { it.isNotEmpty() }
+    ?.replaceFirst("http://", "https://")
+    ?.let { normalized ->
+        if (!normalized.contains("hdslb.com") || normalized.contains('@')) {
+            normalized
+        } else {
+            val (base, query) = normalized.split('?', limit = 2)
+                .let { parts -> parts[0] to parts.getOrNull(1) }
+            val thumbnail = "$base@320w_180h.jpg"
+            if (query == null) thumbnail else "$thumbnail?$query"
+        }
+    }
 
 /**
  * Load an avatar from a Bilibili CDN URL. URLs are normalized to https and

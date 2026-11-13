@@ -506,6 +506,7 @@ private fun PlaylistDetail(
                     subtitle = "${item.author} · ${item.duration}",
                     current = state.current?.toInt() == index,
                     cached = state.cachedBvids.contains(item.bvid),
+                    artworkUrl = item.pic,
                     onClick = { onPlay(index) },
                     trailing = {
                         CircleIconButton(

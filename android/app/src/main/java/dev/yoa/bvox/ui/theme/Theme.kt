@@ -94,6 +94,7 @@ object BvoxDimens {
     val BottomNavIconSelectedScale = 1.05f
 
     val MiniPlayerArtwork = 44.dp
+    val TrackArtwork = 44.dp
     val HeroArtwork = 60.dp
     val PlayButtonLarge = 76.dp
     val PlayButtonHero = 46.dp
