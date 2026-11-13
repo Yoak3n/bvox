@@ -20,7 +20,7 @@ env:
 jobs:
   rust:
     name: Rust tests
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 30
     steps:
       - name: Checkout
@@ -37,7 +37,7 @@ jobs:
 
   tui:
     name: TUI binary
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 30
     steps:
       - name: Checkout
@@ -72,7 +72,7 @@ jobs:
 
   android:
     name: Android APK
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 60
     steps:
       - name: Checkout
@@ -169,7 +169,7 @@ jobs:
     name: Publish release
     if: startsWith(github.ref, 'refs/tags/v')
     needs: [android, tui]
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     permissions:
       contents: write
     steps:
