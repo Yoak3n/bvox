@@ -104,6 +104,12 @@ androidComponents {
         variant.sources.jniLibs?.addStaticSourceDirectory(
             layout.buildDirectory.dir("rustJniLibs").get().asFile.absolutePath
         )
+
+        // Branded artifact names (bvox-v0.1.0-release.apk) instead of app-release.apk.
+        variant.outputs.forEach { output ->
+            val version = output.versionName.orNull ?: "0.0.0"
+            output.outputFileName.set("bvox-v$version-${variant.name}.apk")
+        }
     }
 }
 

@@ -95,7 +95,7 @@ cd android
 export JAVA_HOME=~/opt/jdk-21.0.13+9      # 按实际 JDK 路径
 export ANDROID_HOME=~/Android/Sdk
 ./gradlew assembleDebug                    # 自动执行 cargo ndk + uniffi-bindgen
-# 产物: app/build/outputs/apk/debug/app-debug.apk
+# 产物: app/build/outputs/apk/debug/bvox-v0.1.0-debug.apk
 ```
 
 模拟器运行：
@@ -104,8 +104,19 @@ export ANDROID_HOME=~/Android/Sdk
 sdkmanager "emulator" "system-images;android-35;google_apis;x86_64"
 avdmanager create avd -n test -k "system-images;android-35;google_apis;x86_64"
 emulator -avd test &
-adb install app/build/outputs/apk/debug/app-debug.apk
+adb install app/build/outputs/apk/debug/bvox-v0.1.0-debug.apk
 ```
+
+## CI
+
+GitHub Actions（`.github/workflows/ci.yml`）在 push / PR 时跑 `cargo test`，
+并构建安卓 APK 上传为 Artifact：
+
+- 产物名是 `bvox-v0.1.0-debug.apk` / `bvox-v0.1.0-release.apk`，不再是 `app-release.apk`
+- PR 只构建 debug；push 到 `main` 或打 `v*` tag 时同时构建 release
+- 在仓库 Secrets 配置 `ANDROID_KEYSTORE_BASE64`（keystore 文件的 base64）、
+  `ANDROID_KEYSTORE_PASSWORD`、`ANDROID_KEY_ALIAS`、`ANDROID_KEY_PASSWORD`
+  后 release 使用正式签名；没有配置时 release 产物未签名
 
 
 
