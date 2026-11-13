@@ -11,7 +11,6 @@ import androidx.compose.material3.MaterialTheme
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.lifecycleScope
 import dev.yoa.bilimusic.ui.BiliMusicApp
-import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
@@ -41,9 +40,12 @@ class MainActivity : ComponentActivity() {
      * Media3 fires callbacks only on state changes; poll the controller twice
      * a second (mirroring the desktop mpv poller) and push snapshots into the
      * core, which drives progress rendering and EOF auto-advance.
+     *
+     * Must stay on the main dispatcher: MediaController methods are
+     * main-thread-only.
      */
     private fun startStateReporter() {
-        lifecycleScope.launch(Dispatchers.Default) {
+        lifecycleScope.launch {
             while (isActive) {
                 CoreHolder.controllerFlow.value?.let { controller ->
                     val ended = controller.playbackState == androidx.media3.common.Player.STATE_ENDED

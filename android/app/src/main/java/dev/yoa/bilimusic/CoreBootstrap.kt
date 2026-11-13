@@ -3,6 +3,8 @@ package dev.yoa.bilimusic
 import android.content.ComponentName
 import android.content.Context
 import android.graphics.BitmapFactory
+import android.os.Handler
+import android.os.Looper
 import android.util.Log
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.asImageBitmap
@@ -14,13 +16,13 @@ import dev.yoa.bilimusic.core.CoreConfig
 import dev.yoa.bilimusic.core.CoreEvent
 import dev.yoa.bilimusic.core.CoreObserver
 import dev.yoa.bilimusic.core.PlayerBridge
+import androidx.core.content.ContextCompat
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
-import com.google.common.util.concurrent.MoreExecutors
 
 /** Observable UI state fed by the core's events. */
 class AppModel {
@@ -36,6 +38,8 @@ class ExoPlayerBridge : PlayerBridge {
 
     private data class LoadRequest(val url: String, val userAgent: String, val referer: String)
 
+    private val mainHandler = Handler(Looper.getMainLooper())
+
     @Volatile
     private var controller: MediaController? = null
 
@@ -43,10 +47,14 @@ class ExoPlayerBridge : PlayerBridge {
     private var pendingLoad: LoadRequest? = null
 
     fun attach(controller: MediaController) {
-        this.controller = controller
-        pendingLoad?.let { request ->
-            pendingLoad = null
-            applyLoad(request)
+        // MediaController is main-thread-only; Rust calls arrive on tokio
+        // workers, so everything funnels through the main handler.
+        mainHandler.post {
+            this.controller = controller
+            pendingLoad?.let { request ->
+                pendingLoad = null
+                applyLoad(request)
+            }
         }
     }
 
@@ -63,37 +71,45 @@ class ExoPlayerBridge : PlayerBridge {
 
     override fun load(url: String, userAgent: String, referer: String) {
         val request = LoadRequest(url, userAgent, referer)
-        if (controller == null) {
-            // The service/controller is still connecting; queue the first track.
-            pendingLoad = request
-        } else {
-            applyLoad(request)
+        mainHandler.post {
+            if (controller == null) {
+                // The service/controller is still connecting; queue the first track.
+                pendingLoad = request
+            } else {
+                applyLoad(request)
+            }
         }
     }
 
     override fun togglePause() {
-        controller?.let { it.playWhenReady = !it.playWhenReady }
+        mainHandler.post { controller?.let { it.playWhenReady = !it.playWhenReady } }
     }
 
     override fun seekBy(seconds: Double) {
-        controller?.let {
-            it.seekTo((it.currentPosition + seconds * 1000).coerceAtLeast(0.0).toLong())
+        mainHandler.post {
+            controller?.let {
+                it.seekTo((it.currentPosition + seconds * 1000).coerceAtLeast(0.0).toLong())
+            }
         }
     }
 
     override fun seekTo(seconds: Double) {
-        controller?.seekTo((seconds * 1000).toLong().coerceAtLeast(0L))
+        mainHandler.post { controller?.seekTo((seconds * 1000).toLong().coerceAtLeast(0L)) }
     }
 
     // Core volume is on a 0-150 scale (100 = default); ExoPlayer is 0-1.
     override fun setVolume(volume: Double) {
-        controller?.volume = (volume / 150.0).toFloat().coerceIn(0f, 1f)
+        mainHandler.post {
+            controller?.volume = (volume / 150.0).toFloat().coerceIn(0f, 1f)
+        }
     }
 
     override fun stop() {
-        controller?.let {
-            it.stop()
-            it.clearMediaItems()
+        mainHandler.post {
+            controller?.let {
+                it.stop()
+                it.clearMediaItems()
+            }
         }
     }
 }
@@ -179,6 +195,6 @@ object CoreHolder {
             } catch (error: Exception) {
                 Log.e("BiliMusic", "连接 MediaController 失败", error)
             }
-        }, MoreExecutors.directExecutor())
+        }, ContextCompat.getMainExecutor(context))
     }
 }
