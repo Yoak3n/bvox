@@ -69,6 +69,8 @@ jobs:
           file "$BIN"
           file "$BIN" | grep -Eq "statically linked|static-pie" \
             || { echo "::error::TUI binary is not statically linked"; exit 1; }
+          strip "$BIN"
+          ls -lh "$BIN"
           mkdir -p dist
           tar -czf "dist/bvox-v${VERSION}-x86_64-linux.tar.gz" -C target/x86_64-unknown-linux-musl/release bvox
           ls -lh dist
