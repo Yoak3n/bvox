@@ -60,6 +60,8 @@ install -Dm755 target/release/bvox ~/.local/bin/bvox
 
 ## 安卓版
 
+安装包见 [Releases](https://github.com/Yoak3n/bvox/releases/latest)（正式签名的 `bvox-v<版本>-release.apk`）。
+
 同一个 Rust 核心（`crates/core`）通过 UniFFI 暴露给 Kotlin，UI 用 Jetpack
 Compose，播放用 Media3/ExoPlayer（含通知栏控制、锁屏、后台播放、音频焦点）。
 歌单库、歌曲队列、自动连播、缓存、登录逻辑全部在 Rust 核心里，

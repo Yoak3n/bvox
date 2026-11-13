@@ -39,6 +39,8 @@ jobs:
     name: Android APK
     runs-on: ubuntu-latest
     timeout-minutes: 60
+    permissions:
+      contents: write
     steps:
       - name: Checkout
         uses: actions/checkout@v7
@@ -115,6 +117,40 @@ jobs:
           APK=$(find app/build/outputs/apk/release -name '*.apk' | head -1)
           echo "Verifying $APK"
           "$ANDROID_HOME/build-tools/36.0.0/apksigner" verify --print-certs "$APK"
+
+      - name: Write APK checksum
+        if: startsWith(github.ref, 'refs/tags/v') && env.BVOX_SIGNED == 'true'
+        working-directory: android
+        run: |
+          cd app/build/outputs/apk/release
+          sha256sum *.apk | tee SHA256SUMS.txt
+
+      - name: Publish GitHub Release
+        if: startsWith(github.ref, 'refs/tags/v') && env.BVOX_SIGNED == 'true'
+        uses: softprops/action-gh-release@v3
+        with:
+          name: Bvox ${{ github.ref_name }}
+          tag_name: ${{ github.ref_name }}
+          files: |
+            android/app/build/outputs/apk/release/*.apk
+            android/app/build/outputs/apk/release/SHA256SUMS.txt
+          fail_on_unmatched_files: true
+          body: |
+            ### 安卓
+            - `bvox-v*-release.apk`：正式签名，Android 6.0+（arm64-v8a / x86_64）
+            - `SHA256SUMS.txt`：APK 的 SHA-256 校验
+
+            ### 桌面端
+            Linux 从源码构建：`cargo build --release`，需要 `mpv`。
+
+            ### 主要功能
+            - 搜索 B 站音乐区，只拉取 DASH 音频流
+            - 歌单（B 站收藏夹）新建 / 改名 / 删除 / 隐藏
+            - 离线缓存与离线歌单，已缓存音频断网可播
+            - 播放模式：顺序 / 列表循环 / 单曲循环 / 随机
+            - 启动恢复上次队列与进度（保持暂停）
+            - 歌词视图；安卓支持通知栏 / 锁屏 / 悬浮歌词
+            - 桌面端 ratatui + mpv，安卓端 Jetpack Compose + Media3
 
       - name: Upload APKs
         uses: actions/upload-artifact@v7
