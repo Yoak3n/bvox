@@ -97,6 +97,7 @@ jobs:
           keyAlias=$KEY_ALIAS
           keyPassword=$KEY_PASSWORD
           EOF
+          echo "BVOX_SIGNED=true" >> "$GITHUB_ENV"
 
       - name: Build debug APK
         working-directory: android
@@ -106,6 +107,14 @@ jobs:
         if: github.event_name != 'pull_request'
         working-directory: android
         run: ./gradlew assembleRelease --stacktrace
+
+      - name: Verify APK signature
+        if: env.BVOX_SIGNED == 'true'
+        working-directory: android
+        run: |
+          APK=$(find app/build/outputs/apk/release -name '*.apk' | head -1)
+          echo "Verifying $APK"
+          "$ANDROID_HOME/build-tools/36.0.0/apksigner" verify --print-certs "$APK"
 
       - name: Upload APKs
         uses: actions/upload-artifact@v7
