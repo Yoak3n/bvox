@@ -46,7 +46,8 @@ sudo pacman -S rust mpv
 ## 构建
 
 也可以直接下载 [Releases](https://github.com/Yoak3n/bvox/releases/latest) 里的
-`bvox-v<版本>-x86_64-linux.tar.gz`，解压后运行 `./bvox`（需要系统安装 `mpv`）。
+`bvox-v<版本>-x86_64-linux.tar.gz`（静态链接，任意 x86_64 Linux 发行版），
+解压后运行 `./bvox`（需要系统安装 `mpv`）。
 
 从源码构建：
 
@@ -119,7 +120,7 @@ adb install app/build/outputs/apk/debug/bvox-v0.1.1-debug.apk
 GitHub Actions（`.github/workflows/ci.yml`）在 push / PR 时跑 `cargo test`，
 构建 TUI 和安卓 APK 并上传为 Artifact：
 
-- TUI：`bvox-v<版本>-x86_64-linux.tar.gz`
+- TUI：`bvox-v<版本>-x86_64-linux.tar.gz`（静态 musl 构建）
 - 安卓：`bvox-v<版本>-debug.apk` / `bvox-v<版本>-release.apk`，不再是 `app-release.apk`
 - PR 只构建 debug APK；push 到 `main` 或打 `v*` tag 时同时构建 release
 - 打 `v*` tag 会自动创建 GitHub Release，附上签名 APK、TUI 压缩包和 `SHA256SUMS.txt`
