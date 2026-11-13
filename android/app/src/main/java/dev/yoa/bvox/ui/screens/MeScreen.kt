@@ -330,6 +330,13 @@ fun MeScreen(
         }
 
         item {
+            // Read the installed versionName so the card can never drift from build.gradle.
+            val context = LocalContext.current
+            val appVersion = remember {
+                runCatching {
+                    context.packageManager.getPackageInfo(context.packageName, 0).versionName
+                }.getOrNull().orEmpty()
+            }
             GlassCard {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Box(
@@ -352,7 +359,7 @@ fun MeScreen(
                             .padding(start = 14.dp),
                     ) {
                         Text(
-                            text = "Bvox 0.1.0",
+                            text = if (appVersion.isBlank()) "Bvox" else "Bvox $appVersion",
                             style = MaterialTheme.typography.titleSmall,
                             color = BvoxColors.TextPrimary,
                         )
