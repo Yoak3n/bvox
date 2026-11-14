@@ -106,13 +106,18 @@ class ExoPlayerBridge : PlayerBridge {
                 }
             )
             .build()
-        controller.setMediaItem(mediaItem)
-        controller.prepare()
-        // Media3 keeps a seek made before the timeline is ready and applies it
-        // once the item is prepared; this is how a restored session resumes.
+        // The resume position rides on setMediaItem itself (the documented
+        // default start position). A seekTo() sent around prepare() races the
+        // async session boundary: when it reaches the session player before
+        // the timeline exists it is silently dropped, so a restored session
+        // restarted at 0:00. The overload carries the offset inside the item
+        // and applies it deterministically at prepare.
         if (request.startPosition > 0.0) {
-            controller.seekTo((request.startPosition * 1000.0).toLong())
+            controller.setMediaItem(mediaItem, (request.startPosition * 1000.0).toLong())
+        } else {
+            controller.setMediaItem(mediaItem)
         }
+        controller.prepare()
         controller.play()
     }
 
