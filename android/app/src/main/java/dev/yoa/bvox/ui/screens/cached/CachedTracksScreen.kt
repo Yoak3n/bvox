@@ -1,4 +1,4 @@
-package dev.yoa.bvox.ui.screens
+package dev.yoa.bvox.ui.screens.cached
 
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.layout.Arrangement

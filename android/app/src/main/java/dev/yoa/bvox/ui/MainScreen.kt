@@ -55,8 +55,8 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import dev.yoa.bvox.AppModel
-import dev.yoa.bvox.CoreHolder
+
+
 import dev.yoa.bvox.core.FavoriteFolder
 import dev.yoa.bvox.core.Snapshot
 import dev.yoa.bvox.ui.components.ArtworkTile
@@ -64,13 +64,17 @@ import dev.yoa.bvox.ui.components.BvoxBottomBar
 import dev.yoa.bvox.ui.components.BvoxNavItem
 import dev.yoa.bvox.ui.components.GlassCard
 import dev.yoa.bvox.ui.components.GradientBackground
-import dev.yoa.bvox.ui.screens.DiscoverScreen
 import dev.yoa.bvox.ui.screens.LibraryScreen
 import dev.yoa.bvox.ui.screens.MeScreen
 import dev.yoa.bvox.ui.screens.NowPlayingScreen
 import dev.yoa.bvox.ui.theme.BvoxColors
 import dev.yoa.bvox.ui.theme.BvoxMotion
 import dev.yoa.bvox.ui.theme.BvoxRadius
+import dev.yoa.bvox.core.AppModel
+import dev.yoa.bvox.core.CoreHolder
+import dev.yoa.bvox.ui.screens.discover.DiscoverScreen
+
+
 
 private enum class RootTab(val label: String, val icon: ImageVector) {
     Library("歌单", Icons.Rounded.LibraryMusic),

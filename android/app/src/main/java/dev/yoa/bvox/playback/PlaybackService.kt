@@ -1,4 +1,4 @@
-package dev.yoa.bvox
+package dev.yoa.bvox.playback
 
 import android.app.PendingIntent
 import android.content.Intent
@@ -31,6 +31,15 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
+import dev.yoa.bvox.core.CoreHolder
+import dev.yoa.bvox.lyrics.LyricDisplayPrefs
+import dev.yoa.bvox.lyrics.LyricNotificationProvider
+import dev.yoa.bvox.lyrics.LyricOverlayController
+import dev.yoa.bvox.lyrics.LyricUiLine
+import dev.yoa.bvox.R
+import dev.yoa.bvox.MainActivity
+
+
 
 /**
  * Foreground service owning the ExoPlayer instance and the media session.

@@ -1,4 +1,4 @@
-package dev.yoa.bvox
+package dev.yoa.bvox.core
 
 import android.content.ComponentName
 import android.content.Context
@@ -26,6 +26,11 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.io.File
+import dev.yoa.bvox.lyrics.LyricUiLine
+import dev.yoa.bvox.prefs.CachePrefs
+import dev.yoa.bvox.playback.PlaybackService
+
+
 
 /** Observable UI state fed by the core's events. */
 class AppModel {

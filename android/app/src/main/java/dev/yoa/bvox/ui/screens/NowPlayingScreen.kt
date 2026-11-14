@@ -74,8 +74,8 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
-import dev.yoa.bvox.AppModel
-import dev.yoa.bvox.CoreHolder
+
+
 import dev.yoa.bvox.core.AudioQuality
 import dev.yoa.bvox.core.PlayMode
 import dev.yoa.bvox.core.Snapshot
@@ -91,6 +91,9 @@ import dev.yoa.bvox.ui.components.TrackRow
 import dev.yoa.bvox.ui.theme.BvoxColors
 import dev.yoa.bvox.ui.theme.BvoxMotion
 import dev.yoa.bvox.ui.theme.BvoxRadius
+import dev.yoa.bvox.core.AppModel
+import dev.yoa.bvox.core.CoreHolder
+
 
 private fun formatTime(seconds: Double): String {
     val total = seconds.toLong().coerceAtLeast(0)

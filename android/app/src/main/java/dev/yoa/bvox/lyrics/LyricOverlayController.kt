@@ -1,4 +1,4 @@
-package dev.yoa.bvox
+package dev.yoa.bvox.lyrics
 
 import android.content.Context
 import android.content.SharedPreferences
@@ -22,6 +22,8 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.launch
+import dev.yoa.bvox.core.CoreHolder
+
 
 /**
  * Owns the floating lyric window.

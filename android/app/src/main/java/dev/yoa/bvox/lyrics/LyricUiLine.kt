@@ -1,4 +1,4 @@
-package dev.yoa.bvox
+package dev.yoa.bvox.lyrics
 
 /**
  * One rendered lyric step.

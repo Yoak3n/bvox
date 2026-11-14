@@ -39,10 +39,14 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
-import dev.yoa.bvox.CoreHolder
+
 import dev.yoa.bvox.core.LoginModal
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
+import dev.yoa.bvox.core.CoreHolder
+import dev.yoa.bvox.ui.login.QrCodeView
+
+
 
 /**
  * Login panel. QR comes first (two-device scan is the smoothest path), then

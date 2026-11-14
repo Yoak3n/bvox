@@ -1,4 +1,4 @@
-package dev.yoa.bvox.ui.screens
+package dev.yoa.bvox.ui.screens.lyrics
 
 import android.content.Intent
 import android.content.SharedPreferences
@@ -47,10 +47,12 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
-import dev.yoa.bvox.LyricDisplayPrefs
+
 import dev.yoa.bvox.ui.components.GlassCard
 import dev.yoa.bvox.ui.theme.BvoxColors
 import kotlin.math.roundToInt
+import dev.yoa.bvox.lyrics.LyricDisplayPrefs
+
 
 /** Text color presets for the floating lyric window. */
 private val LyricColorChoices = listOf(

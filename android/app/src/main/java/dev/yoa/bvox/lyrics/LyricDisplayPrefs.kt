@@ -1,4 +1,4 @@
-package dev.yoa.bvox
+package dev.yoa.bvox.lyrics
 
 import android.content.Context
 import android.content.SharedPreferences

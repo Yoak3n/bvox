@@ -31,12 +31,16 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import dev.yoa.bvox.CachePrefs
-import dev.yoa.bvox.CoreHolder
+
+
 import dev.yoa.bvox.core.AudioQuality
 import dev.yoa.bvox.core.CacheMode
 import dev.yoa.bvox.core.FavoriteFolder
 import dev.yoa.bvox.core.PageSummary
+import dev.yoa.bvox.core.CoreHolder
+import dev.yoa.bvox.prefs.CachePrefs
+
+
 
 /** Text input for creating or renaming a playlist. */
 @Composable

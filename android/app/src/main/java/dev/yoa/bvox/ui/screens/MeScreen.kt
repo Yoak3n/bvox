@@ -60,9 +60,9 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import dev.yoa.bvox.CachePrefs
-import dev.yoa.bvox.CoreHolder
-import dev.yoa.bvox.LyricDisplayPrefs
+
+
+
 import dev.yoa.bvox.core.CacheMode
 import dev.yoa.bvox.core.CacheUsage
 import dev.yoa.bvox.core.Snapshot
@@ -79,6 +79,16 @@ import dev.yoa.bvox.ui.theme.BvoxMotion
 import dev.yoa.bvox.ui.theme.BvoxRadius
 import java.util.Locale
 import kotlin.math.roundToInt
+import dev.yoa.bvox.core.CoreHolder
+import dev.yoa.bvox.lyrics.LyricDisplayPrefs
+import dev.yoa.bvox.prefs.CachePrefs
+import dev.yoa.bvox.ui.screens.cached.CachedTracksScreen
+import dev.yoa.bvox.ui.screens.lyrics.LyricSettingsScreen
+
+
+
+
+
 
 /** Account and build info. */
 @Composable

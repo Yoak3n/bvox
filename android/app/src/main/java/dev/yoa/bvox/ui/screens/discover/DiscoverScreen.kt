@@ -1,4 +1,4 @@
-package dev.yoa.bvox.ui.screens
+package dev.yoa.bvox.ui.screens.discover
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border

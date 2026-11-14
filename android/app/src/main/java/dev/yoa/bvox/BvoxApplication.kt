@@ -1,6 +1,8 @@
 package dev.yoa.bvox
 
 import android.app.Application
+import dev.yoa.bvox.core.CoreHolder
+
 
 /**
  * Initializes the core before any component runs. Background playback and the

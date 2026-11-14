@@ -1,4 +1,4 @@
-package dev.yoa.bvox.ui
+package dev.yoa.bvox.ui.login
 
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.layout.BoxWithConstraints

@@ -46,7 +46,7 @@ import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import dev.yoa.bvox.CoreHolder
+
 import dev.yoa.bvox.core.FavoriteFolder
 import dev.yoa.bvox.core.Snapshot
 import dev.yoa.bvox.core.VideoItem
@@ -61,6 +61,8 @@ import dev.yoa.bvox.ui.components.StatusLine
 import dev.yoa.bvox.ui.components.TrackRow
 import dev.yoa.bvox.ui.theme.BvoxColors
 import dev.yoa.bvox.ui.theme.BvoxRadius
+import dev.yoa.bvox.core.CoreHolder
+
 
 /** Favorite folders, or the opened folder's tracks when the core view is Queue. */
 @Composable

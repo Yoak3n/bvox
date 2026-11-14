@@ -1,4 +1,4 @@
-package dev.yoa.bvox
+package dev.yoa.bvox.prefs
 
 import android.content.Context
 import dev.yoa.bvox.core.CacheMode

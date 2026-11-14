@@ -1,4 +1,4 @@
-package dev.yoa.bvox
+package dev.yoa.bvox.lyrics
 
 import android.app.Notification
 import android.content.Context
@@ -9,6 +9,7 @@ import androidx.media3.session.DefaultMediaNotificationProvider
 import androidx.media3.session.MediaNotification
 import androidx.media3.session.MediaSession
 import com.google.common.collect.ImmutableList
+import dev.yoa.bvox.R
 
 /**
  * Media notification provider with the current lyric line in the body and,
