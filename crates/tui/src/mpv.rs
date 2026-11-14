@@ -73,9 +73,11 @@ impl Mpv {
     async fn try_load(&mut self, url: &str) -> Result<()> {
         self.ensure_started().await?;
         // `start` applies to the next loadfile only; every load sets it so a
-        // resume position cannot leak into the following track.
+        // resume position cannot leak into the following track. mpv 0.41+
+        // rejects JSON numbers for time options over IPC, so send the
+        // seconds as a plain time string.
         self.command(json!({
-            "command": ["set_property", "start", self.config.start_position.max(0.0)]
+            "command": ["set_property", "start", format!("{}", self.config.start_position.max(0.0))]
         }))
         .await?;
         self.command(json!({"command": ["loadfile", url]})).await?;
