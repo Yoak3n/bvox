@@ -18,7 +18,7 @@ use tokio::sync::{Mutex, watch};
 
 use crate::CorePaths;
 use crate::api::{ApiClient, AudioQuality, FavoriteFolder, LyricLine, PlayMode, VideoItem};
-use crate::app::{App, LoginModal};
+use crate::app::{App, LoginModal, PageSummary};
 use crate::cache::{CacheMode, CachedTrack};
 use crate::player::{Player, PlayerConfig, PlayerState};
 use crate::session::{CoreEvent as SessionEvent, Msg, Session};
@@ -57,6 +57,9 @@ pub struct Snapshot {
     pub page: u32,
     pub page_count: u32,
     pub part: String,
+    /// 分P list of the loaded video; restored with the session for paused
+    /// resumes, empty before the first playback of a fresh track.
+    pub pages: Vec<PageSummary>,
     pub position: f64,
     pub duration: f64,
     pub paused: bool,
@@ -394,6 +397,11 @@ impl Core {
         self.run(move |session| async move { session.lock().await.step_track(-1) });
     }
 
+    /// Play a specific 分P of the current multi-page video (page picker).
+    pub fn play_page(&self, page: u32) {
+        self.run(move |session| async move { session.lock().await.play_page(page as usize) });
+    }
+
     pub fn retry_current(&self) {
         self.run(move |session| async move { session.lock().await.retry_current() });
     }
@@ -538,8 +546,14 @@ impl Core {
         });
     }
 
-    pub fn import_bv(&self, url: String) {
-        self.run(move |session| async move { session.lock().await.import_bv(url) });
+    /// Import a BV id / link into the queue. With `pick_playlist` the
+    /// frontend is expected to ask which favorite folder to add it to (the
+    /// core parks the track for that); otherwise an open playlist receives
+    /// it directly (TUI keyboard flow).
+    pub fn import_bv(&self, url: String, pick_playlist: bool) {
+        self.run(move |session| async move {
+            session.lock().await.import_bv(url, !pick_playlist);
+        });
     }
 
     pub fn stop(&self) {
@@ -582,6 +596,7 @@ fn build_snapshot(app: &App) -> Snapshot {
         page: app.page as u32,
         page_count: app.page_count as u32,
         part: app.part.clone(),
+        pages: app.playing_pages.clone(),
         position: app.position,
         duration: app.duration,
         paused: app.paused,

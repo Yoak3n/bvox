@@ -17,7 +17,9 @@ use crate::api::{
     SearchPage, VideoDetail, VideoItem, VideoPage, clean_title, cover_thumbnail_url, format_secs,
     quality_label,
 };
-use crate::app::{App, BvImport, MainView, PendingImport, PlayRequest, PlayingInfo, qr_matrix};
+use crate::app::{
+    App, BvImport, MainView, PageSummary, PendingImport, PlayRequest, PlayingInfo, qr_matrix,
+};
 use crate::cache::CacheMode;
 use crate::player::{Player, PlayerConfig};
 use crate::resume::SavedPlayback;
@@ -227,6 +229,15 @@ impl Session {
         self.saved_position = self.app.position;
         self.saved_paused = self.app.paused;
         self.saved_once = true;
+
+        // Push the paused track's cover through the same CoverReady event so
+        // the UI shows it right away; `image_bytes` serves a cached copy from
+        // disk when one exists.
+        if let Some(item) = self.app.now_playing.clone()
+            && !self.app.cover_key.is_empty()
+        {
+            spawn_cover(&self.api, self.tx.clone(), self.app.cover_key.clone(), item.pic);
+        }
 
         if let Some(request) = request {
             // Kept until playback actually starts so the play button and the
@@ -615,13 +626,14 @@ impl Session {
         spawn_remove_track(&self.api, self.tx.clone(), folder_id, bvid, item);
     }
 
-    pub fn import_bv(&self, raw: String) {
-        spawn_import_bv(
-            &self.api,
-            self.tx.clone(),
-            raw,
-            self.app.current_playlist.clone(),
-        );
+    /// Import a BV id / link. With `target_open_playlist` the currently open
+    /// playlist is the destination (TUI keyboard flow); otherwise the track
+    /// only parks in the queue and the frontend asks which folder to use.
+    pub fn import_bv(&mut self, raw: String, target_open_playlist: bool) {
+        let playlist = target_open_playlist
+            .then(|| self.app.current_playlist.clone())
+            .flatten();
+        spawn_import_bv(&self.api, self.tx.clone(), raw, playlist);
     }
 
     // ----- extra commands (keyboard shortcuts on the TUI) ------------------
@@ -653,6 +665,32 @@ impl Session {
                 start_at: 0.0,
             });
         }
+    }
+
+    /// Jump straight to one 分P of the currently playing video (page picker).
+    pub fn play_page(&mut self, page: usize) {
+        if self.app.pending_play {
+            return;
+        }
+        let Some(item) = self.app.now_playing.clone() else {
+            self.app.set_status("还没有播放内容", true);
+            return;
+        };
+        if page >= self.app.playing_pages.len() {
+            self.app.set_status("没有这个分P", true);
+            return;
+        }
+        if page == self.app.page {
+            return;
+        }
+        self.app.pending_play = true;
+        self.app.page = page;
+        self.app.set_status("准备播放…", false);
+        self.play(PlayRequest {
+            item,
+            page_index: page,
+            start_at: 0.0,
+        });
     }
 
     /// Re-fetch lyrics for the current track, bypassing (and dropping) the
@@ -1426,7 +1464,7 @@ async fn import_bv(
             Err(error) => (format!("加入歌单失败: {error:#}"), true, None),
         }
     } else if logged_in {
-        ("未打开歌单".to_string(), false, None)
+        ("等待选择歌单".to_string(), false, None)
     } else {
         ("未登录，仅加入本地列表".to_string(), false, None)
     };
@@ -1481,6 +1519,17 @@ fn spawn_lyrics(
     });
 }
 
+/// Title a frontend should show for the loaded track. Multi-P videos play
+/// one 分P per track and the part title is the actual song name, so it wins
+/// over the collection-style video title.
+fn track_display_title(video_title: &str, part: &str, page_count: usize) -> String {
+    if page_count > 1 && !part.is_empty() {
+        clean_title(part)
+    } else {
+        clean_title(video_title)
+    }
+}
+
 fn spawn_play(
     api: &Arc<ApiClient>,
     player: Arc<dyn Player>,
@@ -1497,7 +1546,8 @@ fn spawn_play(
             start_at,
         } = request;
         let item_pic = item.pic.clone();
-        let result: Result<(VideoDetail, AudioSource, usize, usize, String, i64)> = async {
+        let result: Result<(VideoDetail, AudioSource, usize, usize, String, i64, Vec<PageSummary>)> =
+            async {
             let detail = api.view(&item.bvid).await?;
             let pages = if detail.pages.is_empty() {
                 vec![VideoPage {
@@ -1510,6 +1560,19 @@ fn spawn_play(
             };
             let index = page_index.min(pages.len().saturating_sub(1));
             let page = pages.get(index).context("页码超出范围")?;
+            let summaries = pages
+                .iter()
+                .enumerate()
+                .map(|(position, page)| PageSummary {
+                    cid: page.cid,
+                    title: if page.part.is_empty() {
+                        format!("P{}", position + 1)
+                    } else {
+                        page.part.clone()
+                    },
+                    duration: format_secs(page.duration),
+                })
+                .collect();
 
             let source = api
                 .audio_source(&detail.bvid, page.cid, quality, vip)
@@ -1518,7 +1581,7 @@ fn spawn_play(
             let config = PlayerConfig {
                 user_agent: crate::api::UA.to_string(),
                 referer: crate::api::REFERER.to_string(),
-                title: clean_title(&detail.title),
+                title: track_display_title(&detail.title, &page.part, pages.len()),
                 artist: detail.author.clone(),
                 cover_url: detail
                     .pic
@@ -1536,12 +1599,13 @@ fn spawn_play(
                 pages.len(),
                 page.part.clone(),
                 page.duration,
+                summaries,
             ))
         }
         .await;
 
         match result {
-            Ok((detail, source, page_index, page_count, part, page_duration)) => {
+            Ok((detail, source, page_index, page_count, part, page_duration, summaries)) => {
                 let pic = detail.pic.clone().or(item_pic);
                 let cid = detail
                     .pages
@@ -1559,7 +1623,7 @@ fn spawn_play(
                 let playing = VideoItem {
                     aid,
                     bvid: detail.bvid,
-                    title: detail.title,
+                    title: track_display_title(&detail.title, &part, page_count),
                     author: detail.author,
                     duration: format_secs(page_duration),
                     pic: pic.clone(),
@@ -1574,6 +1638,7 @@ fn spawn_play(
                     page_duration,
                     cid,
                     pic,
+                    pages: summaries,
                     start_position: start_at.max(0.0),
                     cached,
                 }));
@@ -1665,12 +1730,25 @@ fn share_link(input: &str) -> Option<&str> {
 
 #[cfg(test)]
 mod tests {
-    use super::{parse_bvid, share_link};
+    use super::{parse_bvid, share_link, track_display_title};
 
     #[test]
     fn parses_bvid_from_share_text() {
         let text = "【标题 - 哔哩哔哩】 https://www.bilibili.com/video/BV1xx411c7mD?p=2";
         assert_eq!(parse_bvid(text).as_deref(), Some("BV1xx411c7mD"));
+    }
+
+    #[test]
+    fn multi_page_display_title_prefers_the_part_name() {
+        assert_eq!(
+            track_display_title("某合集", "第二话 歌名", 3),
+            "第二话 歌名"
+        );
+        // No part name (or a single-P video) falls back to the video title,
+        // which is cleaned of markup like search results are.
+        assert_eq!(track_display_title("单曲", "", 1), "单曲");
+        assert_eq!(track_display_title("某合集", "", 3), "某合集");
+        assert_eq!(track_display_title("A&amp;B", "", 1), "A&B");
     }
 
     #[test]

@@ -10,6 +10,7 @@ use std::collections::HashSet;
 
 use qrcode::types::Color as QrColor;
 use qrcode::{EcLevel, QrCode};
+use serde::{Deserialize, Serialize};
 
 use crate::api::{
     AudioQuality, FavoriteFolder, LyricLine, PlayMode, SearchPage, UserInfo, VideoItem,
@@ -33,10 +34,22 @@ pub struct PlayingInfo {
     pub page_duration: i64,
     pub cid: i64,
     pub pic: Option<String>,
+    /// Every 分P of the loaded video, for the frontend page picker.
+    pub pages: Vec<PageSummary>,
     /// Seconds the player was asked to start from (resume), zero otherwise.
     pub start_position: f64,
     /// True when playback came from the on-disk audio cache.
     pub cached: bool,
+}
+
+/// One 分P of the video currently loaded in the player.
+#[derive(Clone, Debug, Serialize, Deserialize, uniffi::Record)]
+pub struct PageSummary {
+    pub cid: i64,
+    /// Part title, falling back to `P{n}` when Bilibili omits it.
+    pub title: String,
+    /// Formatted `m:ss` length of this page.
+    pub duration: String,
 }
 
 #[derive(Clone, Copy, PartialEq, Eq)]
@@ -153,6 +166,9 @@ pub struct App {
     pub page: usize,
     pub page_count: usize,
     pub part: String,
+    /// 分P list of the loaded video, backing the page picker. Cleared
+    /// whenever the queue moves to another track; refilled on `Playing`.
+    pub playing_pages: Vec<PageSummary>,
     pub current_cid: i64,
     pub position: f64,
     pub duration: f64,
@@ -244,6 +260,7 @@ impl App {
             page: 0,
             page_count: 0,
             part: String::new(),
+            playing_pages: Vec::new(),
             current_cid: 0,
             position: 0.0,
             duration: 0.0,
@@ -940,6 +957,7 @@ impl App {
         self.page = info.page_index;
         self.page_count = info.page_count;
         self.part = info.part;
+        self.playing_pages = info.pages;
         self.current_cid = info.cid;
         self.position = info.start_position.max(0.0);
         self.duration = if info.page_duration > 0 {
@@ -1189,6 +1207,7 @@ impl App {
         self.page = 0;
         self.page_count = 0;
         self.part.clear();
+        self.playing_pages.clear();
         self.pending_play = true;
         self.set_status("准备播放…", false);
         Some(PlayRequest {
@@ -1294,6 +1313,7 @@ impl App {
         self.page = 0;
         self.page_count = 0;
         self.part.clear();
+        self.playing_pages.clear();
         self.pending_play = true;
         self.reset_shuffle();
         self.set_status("准备播放…", false);

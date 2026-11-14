@@ -15,7 +15,7 @@ use anyhow::{Context, Result};
 use serde::{Deserialize, Serialize};
 
 use crate::api::{FavoriteFolder, VideoItem};
-use crate::app::{App, MainView, PlayRequest};
+use crate::app::{App, MainView, PageSummary, PlayRequest};
 
 pub const PLAYBACK_FILE_NAME: &str = "playback.json";
 
@@ -36,6 +36,10 @@ pub struct SavedPlayback {
     page: usize,
     page_count: usize,
     part: String,
+    /// 分P list of the loaded video, so the page picker works right after a
+    /// restore (even offline). Old files without the field restore empty.
+    #[serde(default)]
+    pages: Vec<PageSummary>,
     quality: String,
     position: f64,
     duration: f64,
@@ -59,6 +63,7 @@ impl SavedPlayback {
             page: app.page,
             page_count: app.page_count,
             part: app.part.clone(),
+            pages: app.playing_pages.clone(),
             quality: app.quality.clone(),
             position: app.position.max(0.0),
             duration: app.duration.max(0.0),
@@ -96,6 +101,13 @@ impl SavedPlayback {
         app.page = if app.current.is_some() { self.page } else { 0 };
         app.page_count = self.page_count;
         app.part = self.part.clone();
+        // The pages belong to the restored track; without a track they are
+        // meaningless and the page picker stays hidden.
+        app.playing_pages = if app.current.is_some() {
+            self.pages.clone()
+        } else {
+            Vec::new()
+        };
         app.quality = self.quality.clone();
         app.now_playing = self.now_playing.clone().or_else(|| {
             app.current
@@ -122,7 +134,22 @@ impl SavedPlayback {
         app.lyrics_key.clear();
         app.lyrics.clear();
         app.lyrics_status.clear();
-        app.cover_key.clear();
+        // The cover of the paused track shows without replaying it: keep the
+        // same `bvid#cid#page` key the replay would produce so the fetched
+        // bytes match both before and after playback starts. Old files without
+        // the 分P list fall back to cid 0 and simply refetch on replay.
+        app.cover_key = app
+            .now_playing
+            .as_ref()
+            .map(|item| {
+                let cid = self
+                    .pages
+                    .get(self.page)
+                    .map(|page| page.cid)
+                    .unwrap_or(0);
+                format!("{}#{}#{}", item.bvid, cid, self.page)
+            })
+            .unwrap_or_default();
         app.cache_progress = None;
 
         if app.now_playing.is_some() || !app.results.is_empty() {
@@ -249,6 +276,47 @@ mod tests {
     }
 
     #[test]
+    fn pages_survive_a_restore_so_the_picker_works_offline() {
+        let mut app = App::new();
+        app.results = vec![item("BV1", "合集")];
+        app.current = Some(0);
+        app.now_playing = Some(item("BV1", "合集"));
+        app.page = 1;
+        app.page_count = 2;
+        app.playing_pages = vec![
+            PageSummary {
+                cid: 11,
+                title: "上集".to_string(),
+                duration: "4:00".to_string(),
+            },
+            PageSummary {
+                cid: 12,
+                title: "下集".to_string(),
+                duration: "3:30".to_string(),
+            },
+        ];
+
+        let saved = roundtrip(&app);
+        let mut restored = App::new();
+        saved.apply(&mut restored).expect("resume request");
+        assert_eq!(restored.playing_pages.len(), 2);
+        assert_eq!(restored.playing_pages[1].title, "下集");
+        assert_eq!(restored.page, 1);
+        // The cover key matches what replay would produce, so the restored
+        // cover also stays valid after playback starts.
+        assert_eq!(restored.cover_key, "BV1#12#1");
+
+        // Without a track there is no video the pages could belong to.
+        app.current = None;
+        app.now_playing = None;
+        let saved = roundtrip(&app);
+        let mut restored = App::new();
+        assert!(saved.apply(&mut restored).is_none());
+        assert!(restored.playing_pages.is_empty());
+        assert!(restored.cover_key.is_empty());
+    }
+
+    #[test]
     fn end_guard_restarts_instead_of_resuming_at_the_end() {
         let mut app = App::new();
         app.results = vec![item("BV1", "第一首")];
@@ -313,8 +381,15 @@ mod tests {
         assert_eq!(loaded.items.len(), 1);
         assert_eq!(loaded.position, 12.0);
 
-        // A file from a newer version must not be interpreted with old rules.
+        // A file written before the pages field existed still restores.
         let path = playback_path(&dir);
+        let mut value: serde_json::Value =
+            serde_json::from_slice(&std::fs::read(&path).unwrap()).unwrap();
+        value.as_object_mut().unwrap().remove("pages");
+        std::fs::write(&path, serde_json::to_vec(&value).unwrap()).unwrap();
+        assert!(load(&dir).is_some());
+
+        // A file from a newer version must not be interpreted with old rules.
         let mut value: serde_json::Value =
             serde_json::from_slice(&std::fs::read(&path).unwrap()).unwrap();
         value["version"] = serde_json::json!(VERSION + 1);

@@ -249,7 +249,7 @@ async fn tui_loop(
                     Action::RemoveFromPlaylist { folder_id, bvid } => {
                         session.remove_track_from_playlist(folder_id, bvid)
                     }
-                    Action::ImportBv(raw) => session.import_bv(raw),
+                    Action::ImportBv(raw) => session.import_bv(raw, true),
                 },
                 Some(TuiEvent::Quit) => break,
                 Some(TuiEvent::Wake) => {}

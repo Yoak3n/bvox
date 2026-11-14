@@ -410,16 +410,13 @@ fn title_line(app: &App) -> Line<'static> {
     } else {
         String::new()
     };
+    // Multi-P videos already carry the 分P title as the track title (see
+    // `Session::spawn_play`), so no separate part span is needed here.
     let title = app
         .now_playing
         .as_ref()
         .map(|item| format!("{}  —  {}", item.title, item.author))
         .unwrap_or_else(|| "（未播放）".to_string());
-    let part = if app.page_count > 1 && !app.part.is_empty() {
-        format!("  ·  {}", app.part)
-    } else {
-        String::new()
-    };
     let quality = if app.quality.is_empty() {
         String::new()
     } else if app.quality_pref == AudioQuality::Auto {
@@ -444,7 +441,6 @@ fn title_line(app: &App) -> Line<'static> {
                 .add_modifier(Modifier::BOLD),
         ),
         Span::styled(title, Style::default().fg(Color::White)),
-        Span::styled(part, Style::default().fg(Color::Gray)),
         Span::styled(quality, Style::default().fg(Color::DarkGray)),
         Span::styled(cache, Style::default().fg(Color::DarkGray)),
     ])
