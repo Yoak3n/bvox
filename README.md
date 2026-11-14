@@ -103,7 +103,7 @@ cd android
 export JAVA_HOME=~/opt/jdk-21.0.13+9      # 按实际 JDK 路径
 export ANDROID_HOME=~/Android/Sdk
 ./gradlew assembleDebug                    # 自动执行 cargo ndk + uniffi-bindgen
-# 产物: app/build/outputs/apk/debug/bvox-v0.1.3-debug.apk
+# 产物: app/build/outputs/apk/debug/bvox-v0.1.4-debug.apk
 ```
 
 模拟器运行：
@@ -112,7 +112,7 @@ export ANDROID_HOME=~/Android/Sdk
 sdkmanager "emulator" "system-images;android-35;google_apis;x86_64"
 avdmanager create avd -n test -k "system-images;android-35;google_apis;x86_64"
 emulator -avd test &
-adb install app/build/outputs/apk/debug/bvox-v0.1.3-debug.apk
+adb install app/build/outputs/apk/debug/bvox-v0.1.4-debug.apk
 ```
 
 ## CI
