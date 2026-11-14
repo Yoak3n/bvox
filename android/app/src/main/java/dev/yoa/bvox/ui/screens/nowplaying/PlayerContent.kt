@@ -1,4 +1,4 @@
-package dev.yoa.bvox.ui.screens
+package dev.yoa.bvox.ui.screens.nowplaying
 
 import android.os.Build
 import androidx.compose.animation.core.LinearEasing
@@ -80,9 +80,6 @@ import dev.yoa.bvox.core.AudioQuality
 import dev.yoa.bvox.core.PlayMode
 import dev.yoa.bvox.core.Snapshot
 import dev.yoa.bvox.core.VideoItem
-import dev.yoa.bvox.ui.AudioQualityDialog
-import dev.yoa.bvox.ui.PagePickerDialog
-import dev.yoa.bvox.ui.audioQualityLabel
 import dev.yoa.bvox.ui.components.EmptyState
 import dev.yoa.bvox.ui.components.GlassCard
 import dev.yoa.bvox.ui.components.InfoChip
@@ -93,9 +90,12 @@ import dev.yoa.bvox.ui.theme.BvoxMotion
 import dev.yoa.bvox.ui.theme.BvoxRadius
 import dev.yoa.bvox.core.AppModel
 import dev.yoa.bvox.core.CoreHolder
+import dev.yoa.bvox.ui.dialogs.PagePickerDialog
+import dev.yoa.bvox.ui.dialogs.audioQualityLabel
+import dev.yoa.bvox.ui.dialogs.AudioQualityDialog
 
 
-private fun formatTime(seconds: Double): String {
+internal fun formatTime(seconds: Double): String {
     val total = seconds.toLong().coerceAtLeast(0)
     val minutes = total / 60
     val rest = total % 60
@@ -103,35 +103,9 @@ private fun formatTime(seconds: Double): String {
 }
 
 /** Full player: floating artwork over a blurred cover backdrop, lyrics below. */
-@Composable
-fun NowPlayingScreen(model: AppModel, modifier: Modifier = Modifier) {
-    val snapshot by model.snapshot.collectAsState()
-    val cover by model.cover.collectAsState()
-    val state = snapshot
-    val item = state?.nowPlaying
-    val bitmap = cover?.takeIf { it.first == state?.coverKey }?.second
-
-    Box(modifier = modifier.fillMaxSize()) {
-        // Modifier.blur needs RenderEffect (API 31); older devices keep the
-        // stage gradient instead of showing a sharp cover behind the UI.
-        if (bitmap != null && Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-            CoverBackdrop(bitmap)
-        }
-        if (state == null || item == null) {
-            EmptyState(
-                icon = Icons.Rounded.MusicNote,
-                title = "还没有播放歌曲",
-                message = "去「发现」或「歌单」挑一首吧",
-                modifier = Modifier.fillMaxSize(),
-            )
-        } else {
-            PlayerContent(state, item, bitmap)
-        }
-    }
-}
 
 @Composable
-private fun PlayerContent(
+internal fun PlayerContent(
     state: Snapshot,
     item: VideoItem,
     bitmap: ImageBitmap?,
@@ -415,243 +389,4 @@ private fun PlayerContent(
             )
         }
     }
-}
-
-@Composable
-private fun Artwork(bitmap: ImageBitmap?, size: Dp) {
-    val transition = rememberInfiniteTransition(label = "artwork_float")
-    val floatAmount by transition.animateFloat(
-        initialValue = -1f,
-        targetValue = 1f,
-        animationSpec = infiniteRepeatable(
-            animation = tween(BvoxMotion.ArtworkFloatMillis, easing = LinearEasing),
-            repeatMode = RepeatMode.Reverse,
-        ),
-        label = "artwork_float_y",
-    )
-    val shape = RoundedCornerShape(BvoxRadius.Xl)
-    Box(
-        modifier = Modifier
-            .size(size)
-            .graphicsLayer {
-                translationY = floatAmount * BvoxMotion.ArtworkFloatDistance.toPx()
-            }
-            .shadow(
-                elevation = 28.dp,
-                shape = shape,
-                spotColor = BvoxColors.GlowPrimary,
-                ambientColor = BvoxColors.GlowSecondary,
-            )
-            .clip(shape)
-            .background(BvoxColors.Card),
-    ) {
-        if (bitmap != null) {
-            Image(
-                bitmap = bitmap,
-                contentDescription = "封面",
-                modifier = Modifier.fillMaxSize(),
-                contentScale = ContentScale.Crop,
-            )
-        } else {
-            Box(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .background(BvoxColors.Accent.copy(alpha = 0.55f)),
-                contentAlignment = Alignment.Center,
-            ) {
-                Icon(
-                    imageVector = Icons.Rounded.MusicNote,
-                    contentDescription = null,
-                    tint = Color.White.copy(alpha = 0.9f),
-                    modifier = Modifier.size(size * 0.28f),
-                )
-            }
-        }
-        Box(
-            modifier = Modifier
-                .fillMaxSize()
-                .border(1.dp, Color.White.copy(alpha = 0.14f), shape),
-        )
-    }
-}
-
-@Composable
-private fun CoverBackdrop(bitmap: ImageBitmap) {
-    Box(modifier = Modifier.fillMaxSize()) {
-        Image(
-            bitmap = bitmap,
-            contentDescription = null,
-            modifier = Modifier
-                .fillMaxSize()
-                .scale(1.25f)
-                .blur(64.dp)
-                .alpha(0.35f),
-            contentScale = ContentScale.Crop,
-        )
-        Box(
-            modifier = Modifier
-                .fillMaxSize()
-                .background(
-                    Brush.verticalGradient(
-                        listOf(
-                            BvoxColors.BgApp.copy(alpha = 0.30f),
-                            BvoxColors.BgApp.copy(alpha = 0.74f),
-                            BvoxColors.BgApp.copy(alpha = 0.96f),
-                        )
-                    )
-                ),
-        )
-    }
-}
-
-/** One chip under the artwork; `action` makes it tappable (分P picker / 音质). */
-private data class TrackChip(val text: String, val action: (() -> Unit)? = null)
-
-private fun trackChips(
-    state: Snapshot,
-    onOpenPages: () -> Unit,
-    onOpenQuality: () -> Unit,
-): List<TrackChip> {
-    val chips = mutableListOf<TrackChip>()
-    val page = state.page.toInt()
-    val pageCount = state.pageCount.toInt()
-    if (pageCount > 1) chips += TrackChip("P${page + 1}/$pageCount", onOpenPages)
-    if (state.quality.isNotEmpty()) chips += TrackChip(state.quality, onOpenQuality)
-    if (state.qualityPref != AudioQuality.AUTO) {
-        chips += TrackChip("音质 ${audioQualityLabel(state.qualityPref)}", onOpenQuality)
-    }
-    // The 分P title already serves as the track heading, so the chips only
-    // carry playback facts (stream, cache).
-    if (state.cachedNow) chips += TrackChip("已缓存")
-    state.cacheProgress?.let { progress ->
-        val downloaded = progress.downloaded.toLong()
-        val total = progress.total?.toLong()
-        val text = if (total != null && total > 0) {
-            "缓存中 ${downloaded * 100 / total}%"
-        } else {
-            "缓存中 ${downloaded / 1_048_576} MB"
-        }
-        chips += TrackChip(text)
-    }
-    return chips
-}
-
-/** Scrolling lyrics with the active line lifted and tinted. */
-@Composable
-private fun LyricsView(state: Snapshot, modifier: Modifier = Modifier) {
-    val listState = rememberLazyListState()
-    val time = state.position + 0.2
-    var activeIndex = -1
-    for ((index, line) in state.lyrics.withIndex()) {
-        if (line.from <= time) activeIndex = index else break
-    }
-
-    LaunchedEffect(activeIndex) {
-        if (activeIndex >= 0) {
-            listState.animateScrollToItem(activeIndex)
-        }
-    }
-
-    LazyColumn(
-        state = listState,
-        modifier = modifier,
-        horizontalAlignment = Alignment.CenterHorizontally,
-    ) {
-        itemsIndexed(state.lyrics) { index, line ->
-            val active = index == activeIndex
-            val color by animateColorAsState(
-                targetValue = if (active) BvoxColors.BrandPrimary else BvoxColors.TextTertiary,
-                animationSpec = tween(BvoxMotion.TrackHighlightMillis),
-                label = "lyric_color",
-            )
-            Text(
-                text = line.text,
-                style = if (active) {
-                    MaterialTheme.typography.titleSmall
-                } else {
-                    MaterialTheme.typography.bodyMedium
-                },
-                fontWeight = if (active) FontWeight.SemiBold else FontWeight.Normal,
-                color = color,
-                textAlign = TextAlign.Center,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(vertical = 5.dp),
-            )
-        }
-    }
-}
-
-/** Bottom sheet with the current queue; tapping a row jumps to that track. */
-@OptIn(ExperimentalMaterial3Api::class)
-@Composable
-private fun QueueSheet(
-    state: Snapshot,
-    onDismiss: () -> Unit,
-    onPlay: (Int) -> Unit,
-) {
-    val listState = rememberLazyListState()
-    LaunchedEffect(state.current) {
-        state.current?.toInt()?.let { index ->
-            if (index >= 0) listState.animateScrollToItem(index)
-        }
-    }
-    ModalBottomSheet(onDismissRequest = onDismiss) {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 20.dp, vertical = 8.dp),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            Text(
-                text = "播放队列",
-                style = MaterialTheme.typography.titleMedium,
-                color = BvoxColors.TextPrimary,
-                modifier = Modifier.weight(1f),
-            )
-            Text(
-                text = "${state.results.size} 首",
-                style = MaterialTheme.typography.bodySmall,
-                color = BvoxColors.TextTertiary,
-            )
-        }
-        LazyColumn(
-            state = listState,
-            modifier = Modifier.fillMaxWidth(),
-            contentPadding = PaddingValues(start = 12.dp, end = 12.dp, bottom = 28.dp),
-            verticalArrangement = Arrangement.spacedBy(6.dp),
-        ) {
-            itemsIndexed(state.results, key = { index, item -> "$index-${item.bvid}" }) { index, item ->
-                TrackRow(
-                    number = "${index + 1}",
-                    title = item.title,
-                    subtitle = "${item.author} · ${item.duration}",
-                    current = state.current?.toInt() == index,
-                    artworkUrl = item.pic,
-                    onClick = { onPlay(index) },
-                )
-            }
-        }
-    }
-}
-
-private fun PlayMode.next(): PlayMode = when (this) {
-    PlayMode.SEQUENTIAL -> PlayMode.REPEAT_ALL
-    PlayMode.REPEAT_ALL -> PlayMode.REPEAT_ONE
-    PlayMode.REPEAT_ONE -> PlayMode.SHUFFLE
-    PlayMode.SHUFFLE -> PlayMode.SEQUENTIAL
-}
-
-private fun playModeLabel(mode: PlayMode): String = when (mode) {
-    PlayMode.SEQUENTIAL -> "顺序播放"
-    PlayMode.REPEAT_ALL -> "列表循环"
-    PlayMode.REPEAT_ONE -> "单曲循环"
-    PlayMode.SHUFFLE -> "随机播放"
-}
-
-private fun playModeIcon(mode: PlayMode): ImageVector = when (mode) {
-    PlayMode.SEQUENTIAL -> Icons.AutoMirrored.Rounded.PlaylistPlay
-    PlayMode.REPEAT_ALL -> Icons.Rounded.Repeat
-    PlayMode.REPEAT_ONE -> Icons.Rounded.RepeatOne
-    PlayMode.SHUFFLE -> Icons.Rounded.Shuffle
 }

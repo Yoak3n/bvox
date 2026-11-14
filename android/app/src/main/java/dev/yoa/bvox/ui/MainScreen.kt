@@ -64,16 +64,20 @@ import dev.yoa.bvox.ui.components.BvoxBottomBar
 import dev.yoa.bvox.ui.components.BvoxNavItem
 import dev.yoa.bvox.ui.components.GlassCard
 import dev.yoa.bvox.ui.components.GradientBackground
-import dev.yoa.bvox.ui.screens.LibraryScreen
-import dev.yoa.bvox.ui.screens.MeScreen
-import dev.yoa.bvox.ui.screens.NowPlayingScreen
+import dev.yoa.bvox.ui.screens.library.LibraryScreen
+import dev.yoa.bvox.ui.screens.me.MeScreen
+import dev.yoa.bvox.ui.screens.nowplaying.NowPlayingScreen
+import dev.yoa.bvox.ui.components.MiniPlayer
+import dev.yoa.bvox.ui.login.LoginPanel
 import dev.yoa.bvox.ui.theme.BvoxColors
 import dev.yoa.bvox.ui.theme.BvoxMotion
 import dev.yoa.bvox.ui.theme.BvoxRadius
 import dev.yoa.bvox.core.AppModel
 import dev.yoa.bvox.core.CoreHolder
 import dev.yoa.bvox.ui.screens.discover.DiscoverScreen
-
+import dev.yoa.bvox.ui.dialogs.PlaylistNameDialog
+import dev.yoa.bvox.ui.dialogs.AddToPlaylistDialog
+import dev.yoa.bvox.ui.dialogs.BvImportDialog
 
 
 private enum class RootTab(val label: String, val icon: ImageVector) {
@@ -365,87 +369,6 @@ fun BvoxApp(model: AppModel) {
                     TextButton(onClick = { removeTrack = null }) { Text("取消") }
                 },
             )
-        }
-    }
-}
-
-@Composable
-private fun MiniPlayer(
-    state: Snapshot,
-    cover: ImageBitmap?,
-    onOpen: () -> Unit,
-) {
-    val item = state.nowPlaying ?: return
-    Box(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(start = 12.dp, end = 12.dp, bottom = 6.dp),
-    ) {
-        GlassCard(
-            onClick = onOpen,
-            shape = RoundedCornerShape(20.dp),
-            contentPadding = PaddingValues(10.dp),
-        ) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                if (cover != null) {
-                    Image(
-                        bitmap = cover,
-                        contentDescription = "封面",
-                        modifier = Modifier
-                            .size(44.dp)
-                            .clip(RoundedCornerShape(BvoxRadius.Sm)),
-                        contentScale = ContentScale.Crop,
-                    )
-                } else {
-                    ArtworkTile(size = 44.dp, shape = RoundedCornerShape(BvoxRadius.Sm))
-                }
-                Column(
-                    modifier = Modifier
-                        .weight(1f)
-                        .padding(horizontal = 10.dp),
-                ) {
-                    Text(
-                        text = item.title,
-                        style = MaterialTheme.typography.titleSmall,
-                        color = BvoxColors.TextPrimary,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
-                    )
-                    Text(
-                        text = item.author,
-                        style = MaterialTheme.typography.bodySmall,
-                        color = BvoxColors.TextTertiary,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
-                    )
-                }
-                IconButton(onClick = { CoreHolder.core.togglePause() }) {
-                    Icon(
-                        imageVector = if (state.paused) Icons.Rounded.PlayArrow else Icons.Rounded.Pause,
-                        contentDescription = if (state.paused) "播放" else "暂停",
-                        tint = BvoxColors.TextPrimary,
-                    )
-                }
-                IconButton(onClick = { CoreHolder.core.nextTrack() }) {
-                    Icon(
-                        imageVector = Icons.Rounded.SkipNext,
-                        contentDescription = "下一首",
-                        tint = BvoxColors.TextPrimary,
-                    )
-                }
-            }
-            if (state.duration > 0) {
-                LinearProgressIndicator(
-                    progress = { (state.position / state.duration).toFloat().coerceIn(0f, 1f) },
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(top = 8.dp)
-                        .height(2.dp)
-                        .clip(RoundedCornerShape(1.dp)),
-                    color = BvoxColors.BrandPrimary,
-                    trackColor = BvoxColors.Hairline,
-                )
-            }
         }
     }
 }
