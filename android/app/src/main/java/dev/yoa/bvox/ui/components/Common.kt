@@ -426,9 +426,12 @@ fun EmptyState(
 }
 
 @Composable
-fun InfoChip(text: String, modifier: Modifier = Modifier) {
+fun InfoChip(text: String, modifier: Modifier = Modifier, onClick: (() -> Unit)? = null) {
+    // Clickable chips (e.g. the 分P counter opening the page picker) keep the
+    // same look; a null onClick renders the plain static chip.
+    val surface = if (onClick != null) modifier.clickable(onClick = onClick) else modifier
     Surface(
-        modifier = modifier,
+        modifier = surface,
         shape = RoundedCornerShape(BvoxRadius.Pill),
         color = BvoxColors.CardStrong,
         border = androidx.compose.foundation.BorderStroke(BvoxDimens.Hairline, BvoxColors.Hairline),

@@ -10,7 +10,11 @@ import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.rounded.Check
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Icon
 import androidx.compose.material3.ListItem
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
@@ -24,12 +28,15 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import dev.yoa.bvox.CachePrefs
 import dev.yoa.bvox.CoreHolder
 import dev.yoa.bvox.core.AudioQuality
 import dev.yoa.bvox.core.CacheMode
 import dev.yoa.bvox.core.FavoriteFolder
+import dev.yoa.bvox.core.PageSummary
 
 /** Text input for creating or renaming a playlist. */
 @Composable
@@ -125,6 +132,79 @@ fun AddToPlaylistDialog(
         },
         confirmButton = {
             TextButton(onClick = onDismiss) { Text("取消") }
+        },
+    )
+}
+
+/** Pick one 分P of the currently playing multi-page video. */
+@Composable
+fun PagePickerDialog(
+    videoTitle: String,
+    pages: List<PageSummary>,
+    currentPage: Int,
+    onDismiss: () -> Unit,
+    onPick: (Int) -> Unit,
+) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("切换分P") },
+        text = {
+            Column {
+                Text(
+                    videoTitle,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.padding(bottom = 8.dp),
+                )
+                LazyColumn(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .heightIn(max = 360.dp),
+                ) {
+                    itemsIndexed(pages) { index, page ->
+                        val current = index == currentPage
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clickable { onPick(index) }
+                                .padding(vertical = 8.dp, horizontal = 4.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text(
+                                    text = page.title,
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    fontWeight = if (current) FontWeight.SemiBold else FontWeight.Normal,
+                                    color = if (current) {
+                                        MaterialTheme.colorScheme.primary
+                                    } else {
+                                        MaterialTheme.colorScheme.onSurface
+                                    },
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis,
+                                )
+                                Text(
+                                    text = "P${index + 1} · ${page.duration}",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                )
+                            }
+                            if (current) {
+                                Icon(
+                                    imageVector = Icons.Rounded.Check,
+                                    contentDescription = "正在播放",
+                                    tint = MaterialTheme.colorScheme.primary,
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = onDismiss) { Text("关闭") }
         },
     )
 }
@@ -320,7 +400,9 @@ fun BvImportDialog(onDismiss: () -> Unit) {
                 onClick = {
                     val text = input.trim()
                     if (text.isNotEmpty()) {
-                        CoreHolder.core.importBv(text)
+                        // pickPlaylist=true: the core parks the import and the
+                        // folder chooser dialog opens once it lands.
+                        CoreHolder.core.importBv(text, true)
                         onDismiss()
                     }
                 },

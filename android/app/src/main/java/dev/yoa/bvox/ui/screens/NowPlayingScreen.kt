@@ -18,12 +18,10 @@ import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
@@ -31,6 +29,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.PlaylistPlay
+import androidx.compose.material.icons.automirrored.rounded.QueueMusic
 import androidx.compose.material.icons.rounded.MoreVert
 import androidx.compose.material.icons.rounded.MusicNote
 import androidx.compose.material.icons.rounded.Refresh
@@ -39,16 +38,16 @@ import androidx.compose.material.icons.rounded.RepeatOne
 import androidx.compose.material.icons.rounded.Shuffle
 import androidx.compose.material.icons.rounded.SkipNext
 import androidx.compose.material.icons.rounded.SkipPrevious
-import androidx.compose.material.icons.rounded.Tune
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Slider
 import androidx.compose.material3.SliderDefaults
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -82,11 +81,13 @@ import dev.yoa.bvox.core.PlayMode
 import dev.yoa.bvox.core.Snapshot
 import dev.yoa.bvox.core.VideoItem
 import dev.yoa.bvox.ui.AudioQualityDialog
+import dev.yoa.bvox.ui.PagePickerDialog
 import dev.yoa.bvox.ui.audioQualityLabel
 import dev.yoa.bvox.ui.components.EmptyState
 import dev.yoa.bvox.ui.components.GlassCard
 import dev.yoa.bvox.ui.components.InfoChip
 import dev.yoa.bvox.ui.components.PlayButton
+import dev.yoa.bvox.ui.components.TrackRow
 import dev.yoa.bvox.ui.theme.BvoxColors
 import dev.yoa.bvox.ui.theme.BvoxMotion
 import dev.yoa.bvox.ui.theme.BvoxRadius
@@ -133,6 +134,8 @@ private fun PlayerContent(
     bitmap: ImageBitmap?,
 ) {
     var showQualityDialog by remember { mutableStateOf(false) }
+    var showPagePicker by remember { mutableStateOf(false) }
+    var showQueue by remember { mutableStateOf(false) }
     var showMoreMenu by remember { mutableStateOf(false) }
     Column(
         modifier = Modifier
@@ -143,35 +146,9 @@ private fun PlayerContent(
     ) {
         Row(
             modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.End,
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            Text(
-                text = "正在播放",
-                style = MaterialTheme.typography.titleMedium,
-                color = BvoxColors.TextPrimary,
-                modifier = Modifier.weight(1f),
-            )
-            TextButton(onClick = { CoreHolder.core.setPlayMode(state.playMode.next()) }) {
-                Icon(
-                    imageVector = playModeIcon(state.playMode),
-                    contentDescription = null,
-                    modifier = Modifier.size(18.dp),
-                    tint = BvoxColors.TextTertiary,
-                )
-                Spacer(modifier = Modifier.width(4.dp))
-                Text(
-                    text = playModeLabel(state.playMode),
-                    style = MaterialTheme.typography.labelMedium,
-                    color = BvoxColors.TextTertiary,
-                )
-            }
-            IconButton(onClick = { showQualityDialog = true }) {
-                Icon(
-                    imageVector = Icons.Rounded.Tune,
-                    contentDescription = "音质偏好",
-                    tint = BvoxColors.TextTertiary,
-                )
-            }
             Box {
                 IconButton(onClick = { showMoreMenu = true }) {
                     Icon(
@@ -230,7 +207,11 @@ private fun PlayerContent(
             modifier = Modifier.padding(top = 2.dp),
         )
 
-        val chips = trackChips(state)
+        val chips = trackChips(
+            state,
+            onOpenPages = { showPagePicker = true },
+            onOpenQuality = { showQualityDialog = true },
+        )
         if (chips.isNotEmpty()) {
             Row(
                 modifier = Modifier
@@ -239,7 +220,7 @@ private fun PlayerContent(
                     .padding(top = 8.dp),
                 horizontalArrangement = Arrangement.spacedBy(6.dp, Alignment.CenterHorizontally),
             ) {
-                chips.forEach { chip -> InfoChip(chip) }
+                chips.forEach { chip -> InfoChip(chip.text, onClick = chip.action) }
             }
         }
 
@@ -290,6 +271,17 @@ private fun PlayerContent(
             verticalAlignment = Alignment.CenterVertically,
         ) {
             IconButton(
+                onClick = { CoreHolder.core.setPlayMode(state.playMode.next()) },
+                modifier = Modifier.size(56.dp),
+            ) {
+                Icon(
+                    imageVector = playModeIcon(state.playMode),
+                    contentDescription = playModeLabel(state.playMode),
+                    tint = BvoxColors.TextTertiary,
+                    modifier = Modifier.size(24.dp),
+                )
+            }
+            IconButton(
                 onClick = { CoreHolder.core.previousTrack() },
                 modifier = Modifier.size(56.dp),
             ) {
@@ -316,6 +308,17 @@ private fun PlayerContent(
                     contentDescription = "下一首",
                     tint = BvoxColors.TextPrimary,
                     modifier = Modifier.size(34.dp),
+                )
+            }
+            IconButton(
+                onClick = { showQueue = true },
+                modifier = Modifier.size(56.dp),
+            ) {
+                Icon(
+                    imageVector = Icons.AutoMirrored.Rounded.QueueMusic,
+                    contentDescription = "播放队列",
+                    tint = BvoxColors.TextTertiary,
+                    modifier = Modifier.size(24.dp),
                 )
             }
         }
@@ -381,6 +384,31 @@ private fun PlayerContent(
                 vip = state.vip,
                 onDismiss = { showQualityDialog = false },
                 onSelect = { quality -> CoreHolder.core.setAudioQuality(quality) },
+            )
+        }
+
+        if (showPagePicker) {
+            PagePickerDialog(
+                videoTitle = state.results.getOrNull(state.current?.toInt() ?: -1)?.title
+                    ?: item.title,
+                pages = state.pages,
+                currentPage = state.page.toInt(),
+                onDismiss = { showPagePicker = false },
+                onPick = { index ->
+                    showPagePicker = false
+                    CoreHolder.core.playPage(index.toUInt())
+                },
+            )
+        }
+
+        if (showQueue) {
+            QueueSheet(
+                state = state,
+                onDismiss = { showQueue = false },
+                onPlay = { index ->
+                    CoreHolder.core.play(index.toUInt())
+                    showQueue = false
+                },
             )
         }
     }
@@ -473,27 +501,34 @@ private fun CoverBackdrop(bitmap: ImageBitmap) {
     }
 }
 
-private fun trackChips(state: Snapshot): List<String> {
-    val chips = mutableListOf<String>()
+/** One chip under the artwork; `action` makes it tappable (分P picker / 音质). */
+private data class TrackChip(val text: String, val action: (() -> Unit)? = null)
+
+private fun trackChips(
+    state: Snapshot,
+    onOpenPages: () -> Unit,
+    onOpenQuality: () -> Unit,
+): List<TrackChip> {
+    val chips = mutableListOf<TrackChip>()
     val page = state.page.toInt()
     val pageCount = state.pageCount.toInt()
-    if (pageCount > 1) chips += "P${page + 1}/$pageCount"
-    if (state.quality.isNotEmpty()) chips += state.quality
+    if (pageCount > 1) chips += TrackChip("P${page + 1}/$pageCount", onOpenPages)
+    if (state.quality.isNotEmpty()) chips += TrackChip(state.quality, onOpenQuality)
     if (state.qualityPref != AudioQuality.AUTO) {
-        chips += "音质 ${audioQualityLabel(state.qualityPref)}"
+        chips += TrackChip("音质 ${audioQualityLabel(state.qualityPref)}", onOpenQuality)
     }
-    // Single-part videos report the whole video title as `part`; showing it
-    // duplicates the heading and blows out the chip row.
-    if (pageCount > 1 && state.part.isNotEmpty()) chips += state.part
-    if (state.cachedNow) chips += "已缓存"
+    // The 分P title already serves as the track heading, so the chips only
+    // carry playback facts (stream, cache).
+    if (state.cachedNow) chips += TrackChip("已缓存")
     state.cacheProgress?.let { progress ->
         val downloaded = progress.downloaded.toLong()
         val total = progress.total?.toLong()
-        chips += if (total != null && total > 0) {
+        val text = if (total != null && total > 0) {
             "缓存中 ${downloaded * 100 / total}%"
         } else {
             "缓存中 ${downloaded / 1_048_576} MB"
         }
+        chips += TrackChip(text)
     }
     return chips
 }
@@ -540,6 +575,59 @@ private fun LyricsView(state: Snapshot, modifier: Modifier = Modifier) {
                     .fillMaxWidth()
                     .padding(vertical = 5.dp),
             )
+        }
+    }
+}
+
+/** Bottom sheet with the current queue; tapping a row jumps to that track. */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun QueueSheet(
+    state: Snapshot,
+    onDismiss: () -> Unit,
+    onPlay: (Int) -> Unit,
+) {
+    val listState = rememberLazyListState()
+    LaunchedEffect(state.current) {
+        state.current?.toInt()?.let { index ->
+            if (index >= 0) listState.animateScrollToItem(index)
+        }
+    }
+    ModalBottomSheet(onDismissRequest = onDismiss) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 20.dp, vertical = 8.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Text(
+                text = "播放队列",
+                style = MaterialTheme.typography.titleMedium,
+                color = BvoxColors.TextPrimary,
+                modifier = Modifier.weight(1f),
+            )
+            Text(
+                text = "${state.results.size} 首",
+                style = MaterialTheme.typography.bodySmall,
+                color = BvoxColors.TextTertiary,
+            )
+        }
+        LazyColumn(
+            state = listState,
+            modifier = Modifier.fillMaxWidth(),
+            contentPadding = PaddingValues(start = 12.dp, end = 12.dp, bottom = 28.dp),
+            verticalArrangement = Arrangement.spacedBy(6.dp),
+        ) {
+            itemsIndexed(state.results, key = { index, item -> "$index-${item.bvid}" }) { index, item ->
+                TrackRow(
+                    number = "${index + 1}",
+                    title = item.title,
+                    subtitle = "${item.author} · ${item.duration}",
+                    current = state.current?.toInt() == index,
+                    artworkUrl = item.pic,
+                    onClick = { onPlay(index) },
+                )
+            }
         }
     }
 }
