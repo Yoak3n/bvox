@@ -37,6 +37,7 @@ mod text;
 mod transport;
 mod video;
 
+pub use crate::duration::format_secs;
 pub(crate) use image::cover_thumbnail_url;
 pub use model::{
     AudioSource, AudioStream, FavoriteFolder, LyricLine, QrLogin, QrPhase, SearchPage, UserInfo,
@@ -98,17 +99,5 @@ impl ApiClient {
 
     pub fn audio_cache_enabled(&self) -> bool {
         self.cache.audio_enabled()
-    }
-}
-
-pub fn format_secs(total: i64) -> String {
-    let total = total.max(0);
-    let hours = total / 3600;
-    let minutes = (total % 3600) / 60;
-    let seconds = total % 60;
-    if hours > 0 {
-        format!("{hours}:{minutes:02}:{seconds:02}")
-    } else {
-        format!("{minutes}:{seconds:02}")
     }
 }

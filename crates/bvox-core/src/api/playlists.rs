@@ -27,26 +27,26 @@ impl ApiClient {
         }
 
         let folders = playlist_folders(resp.data.and_then(|data| data.list).unwrap_or_default());
-        let _ = crate::playlists::save_folders(&self.paths.data_dir, mid, &folders);
+        let _ = crate::playlist_store::save_folders(&self.paths.data_dir, mid, &folders);
         Ok(folders)
     }
 
     /// Last successfully fetched folder list for the current account.
     pub async fn cached_favorite_folders(&self) -> Option<Vec<FavoriteFolder>> {
         let mid = self.mid().await?;
-        crate::playlists::load_folders(&self.paths.data_dir, mid)
+        crate::playlist_store::load_folders(&self.paths.data_dir, mid)
     }
 
     /// Last successfully fetched contents of one folder.
     pub async fn cached_favorite_items(&self, media_id: i64) -> Option<Vec<VideoItem>> {
         let mid = self.mid().await?;
-        crate::playlists::load_items(&self.paths.data_dir, mid, media_id)
+        crate::playlist_store::load_items(&self.paths.data_dir, mid, media_id)
     }
 
     /// Persist the folder list after a local mutation (create/rename/delete).
     pub async fn save_playlist_cache(&self, folders: &[FavoriteFolder]) {
         if let Some(mid) = self.mid().await {
-            let _ = crate::playlists::save_folders(&self.paths.data_dir, mid, folders);
+            let _ = crate::playlist_store::save_folders(&self.paths.data_dir, mid, folders);
         }
     }
 
@@ -91,7 +91,7 @@ impl ApiClient {
         }
 
         if let Some(mid) = self.mid().await {
-            let _ = crate::playlists::save_items(&self.paths.data_dir, mid, media_id, &items);
+            let _ = crate::playlist_store::save_items(&self.paths.data_dir, mid, media_id, &items);
         }
         Ok(items)
     }

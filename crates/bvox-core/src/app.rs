@@ -222,9 +222,3 @@ impl Default for App {
         Self::new()
     }
 }
-
-pub(crate) fn parse_duration(text: &str) -> f64 {
-    text.split(':')
-        .filter_map(|part| part.parse::<f64>().ok())
-        .fold(0.0, |total, part| total * 60.0 + part)
-}

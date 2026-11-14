@@ -1,9 +1,9 @@
 //! Playback state: now-playing info, player state, auto-advance.
 
 use super::App;
-use super::parse_duration;
 use super::{PlayRequest, PlayingInfo};
 use crate::api::PlayMode;
+use crate::duration::parse_duration;
 use crate::player::PlayerState;
 
 impl App {
