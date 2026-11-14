@@ -68,7 +68,7 @@ install -Dm755 target/release/bvox ~/.local/bin/bvox
 
 安装包见 [Releases](https://github.com/Yoak3n/bvox/releases/latest)（正式签名的 `bvox-v<版本>-release.apk`）。
 
-同一个 Rust 核心（`crates/core`）通过 UniFFI 暴露给 Kotlin，UI 用 Jetpack
+同一个 Rust 核心（`crates/bvox-core`）通过 UniFFI 暴露给 Kotlin，UI 用 Jetpack
 Compose，播放用 Media3/ExoPlayer（含通知栏控制、锁屏、后台播放、音频焦点）。
 歌单库、歌曲队列、自动连播、缓存、登录逻辑全部在 Rust 核心里，
 桌面与安卓共享。安卓端登录后首页是「我的歌单」，点开进入歌曲列表；
@@ -83,8 +83,8 @@ Compose，播放用 Media3/ExoPlayer（含通知栏控制、锁屏、后台播�
 架构：
 
 ```
-crates/core    bvox-core：api/cache/app/session/player + ffi（UniFFI 导出）
-crates/tui     bvox-tui：ratatui 前端 + mpv IPC（Player trait 实现）
+crates/bvox-core    bvox-core：api/cache/app/session/player + ffi（UniFFI 导出）
+crates/bvox-tui     bvox-tui：ratatui 前端 + mpv IPC（Player trait 实现）
 android/       Kotlin 前端：Compose UI + PlaybackService（ExoPlayer 桥）
 ```
 
@@ -188,7 +188,7 @@ GET https://api.bilibili.com/x/web-interface/wbi/search/type
 
 `tids=3` 把结果限定在音乐分区，避免搜歌时混进其他分区的视频。
 
-签名步骤（`crates/core/src/api.rs`）：
+签名步骤（`crates/bvox-core/src/api.rs`）：
 
 1. `GET /x/frontend/finger/spi` 取 `data.b_3`，作为 `buvid3` Cookie
 2. `GET /x/web-interface/nav` 取 `data.wbi_img.img_url` / `sub_url` 的文件名
@@ -245,7 +245,7 @@ GET https://passport.bilibili.com/x/passport-login/web/qrcode/poll?qrcode_key=..
      86038  二维码过期
 ```
 
-`crates/core/src/api.rs` 把 QR URL 生成模块矩阵，`crates/tui/src/ui.rs` 用 `▀/▄/█` 半块字符渲染成黑白二维码（白底、4 模块静区、EC level L）。登录成功后只保留需要的 Cookie 字段并写入 `~/.config/bvox/cookie`。
+`crates/bvox-core/src/api.rs` 把 QR URL 生成模块矩阵，`crates/bvox-tui/src/ui.rs` 用 `▀/▄/█` 半块字符渲染成黑白二维码（白底、4 模块静区、EC level L）。登录成功后只保留需要的 Cookie 字段并写入 `~/.config/bvox/cookie`。
 
 ### 4. 收藏夹 / 歌单
 
@@ -403,7 +403,7 @@ view/<bvid>.json
 
 ### 9. 播放与控制
 
-`crates/tui/src/mpv.rs` 启动一个常驻 mpv：
+`crates/bvox-tui/src/mpv.rs` 启动一个常驻 mpv：
 
 ```text
 mpv --idle=yes --no-video --force-window=no \
@@ -435,7 +435,7 @@ mpv --idle=yes --no-video --force-window=no \
 
 `passport.bilibili.com` 会解析出多个 IPv4，其中偶尔有 TCP 能建连但 TLS 永远不回包的节点。reqwest 不会像 curl 那样做 Happy Eyeballs，会卡在第一个地址直到 20 秒超时。
 
-`crates/core/src/api.rs` 的自定义 resolver 做了三件事：
+`crates/bvox-core/src/api.rs` 的自定义 resolver 做了三件事：
 
 1. 优先 IPv4
 2. 对多个候选地址并行发 HTTPS HEAD 探测（使用同一个 reqwest/rustls 栈，能过滤“TCP 能连但 TLS/HTTP 不回包”的节点），把第一个可用地址排到最前
@@ -446,14 +446,14 @@ mpv --idle=yes --no-video --force-window=no \
 ## 代码结构
 
 ```text
-crates/core/src/
+crates/bvox-core/src/
 ├── api.rs     # WBI、搜索、二维码登录、收藏夹/歌单读写、字幕、封面、DASH 音频流、DNS
 ├── cache.rs   # 磁盘缓存：音频、封面、歌词、view，TTL 与 LRU 淘汰
 ├── app.rs     # 状态机：歌单库/队列视图、选中项、分 P、登录、加歌弹窗、歌词游标
 ├── session.rs # 会话调度：命令、后台任务、自动切歌、歌单增删改
 ├── player.rs  # Player trait（桌面 mpv / 安卓 ExoPlayer 的接缝）
 └── ffi.rs     # UniFFI 导出：Snapshot、Core 命令、事件回调
-crates/tui/src/
+crates/bvox-tui/src/
 ├── mpv.rs      # mpv 进程与 JSON IPC（load / pause / seek / volume / poll）
 ├── cover.rs    # 半块回落的封面解码与 56×32 RGB 网格
 ├── ui.rs       # ratatui 布局：歌单表、结果表、播放器、封面、歌词、弹窗
