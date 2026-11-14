@@ -236,7 +236,12 @@ impl Session {
         if let Some(item) = self.app.now_playing.clone()
             && !self.app.cover_key.is_empty()
         {
-            spawn_cover(&self.api, self.tx.clone(), self.app.cover_key.clone(), item.pic);
+            spawn_cover(
+                &self.api,
+                self.tx.clone(),
+                self.app.cover_key.clone(),
+                item.pic,
+            );
         }
 
         if let Some(request) = request {
@@ -1546,8 +1551,15 @@ fn spawn_play(
             start_at,
         } = request;
         let item_pic = item.pic.clone();
-        let result: Result<(VideoDetail, AudioSource, usize, usize, String, i64, Vec<PageSummary>)> =
-            async {
+        let result: Result<(
+            VideoDetail,
+            AudioSource,
+            usize,
+            usize,
+            String,
+            i64,
+            Vec<PageSummary>,
+        )> = async {
             let detail = api.view(&item.bvid).await?;
             let pages = if detail.pages.is_empty() {
                 vec![VideoPage {

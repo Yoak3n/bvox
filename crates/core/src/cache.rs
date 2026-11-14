@@ -382,9 +382,7 @@ impl Cache {
                 .metadata()
                 .and_then(|metadata| metadata.modified())
                 .unwrap_or(SystemTime::UNIX_EPOCH);
-            let replace = newest
-                .get(bvid)
-                .is_none_or(|(best, ..)| modified >= *best);
+            let replace = newest.get(bvid).is_none_or(|(best, ..)| modified >= *best);
             if replace {
                 newest.insert(bvid.to_string(), (modified, cid, quality_id, bandwidth));
             }

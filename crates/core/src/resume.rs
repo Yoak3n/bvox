@@ -142,11 +142,7 @@ impl SavedPlayback {
             .now_playing
             .as_ref()
             .map(|item| {
-                let cid = self
-                    .pages
-                    .get(self.page)
-                    .map(|page| page.cid)
-                    .unwrap_or(0);
+                let cid = self.pages.get(self.page).map(|page| page.cid).unwrap_or(0);
                 format!("{}#{}#{}", item.bvid, cid, self.page)
             })
             .unwrap_or_default();

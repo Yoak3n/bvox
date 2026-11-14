@@ -65,12 +65,7 @@ pub fn load_folders(data_dir: &Path, mid: i64) -> Option<Vec<FavoriteFolder>> {
     read_json::<CachedFolders>(&folders_path(data_dir, mid)).map(|cached| cached.folders)
 }
 
-pub fn save_items(
-    data_dir: &Path,
-    mid: i64,
-    media_id: i64,
-    items: &[VideoItem],
-) -> Result<()> {
+pub fn save_items(data_dir: &Path, mid: i64, media_id: i64, items: &[VideoItem]) -> Result<()> {
     write_json(
         &items_path(data_dir, mid, media_id),
         &CachedItems {

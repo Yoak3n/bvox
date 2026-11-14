@@ -909,12 +909,11 @@ impl App {
                 // Park the track when there is nowhere to put it yet. The
                 // frontends immediately prompt for a new playlist; logged-out
                 // imports cannot create one, so they stay local silently.
-                self.pending_import = (import.playlist.is_none() && import.logged_in).then(|| {
-                    PendingImport {
+                self.pending_import =
+                    (import.playlist.is_none() && import.logged_in).then(|| PendingImport {
                         bvid: bvid.clone(),
                         title: title.clone(),
-                    }
-                });
+                    });
                 if let Some(folder) = import.playlist {
                     if let Some(entry) = self
                         .playlists
@@ -1778,12 +1777,7 @@ mod tests {
     fn offline_playlist_open_is_marked_in_the_status() {
         let mut app = App::new();
         let seq = app.begin_playlist_open();
-        app.on_playlist_opened(
-            seq,
-            folder(7, "缓存歌单", 1),
-            Ok(vec![item("BV1")]),
-            true,
-        );
+        app.on_playlist_opened(seq, folder(7, "缓存歌单", 1), Ok(vec![item("BV1")]), true);
 
         assert_eq!(app.results.len(), 1);
         assert!(app.status.contains("离线缓存"));
@@ -1794,7 +1788,12 @@ mod tests {
         let mut app = App::new();
         let stale_open = app.begin_playlist_open();
         let _fresh_open = app.begin_playlist_open();
-        app.on_playlist_opened(stale_open, folder(7, "旧歌单", 1), Ok(vec![item("BV1")]), false);
+        app.on_playlist_opened(
+            stale_open,
+            folder(7, "旧歌单", 1),
+            Ok(vec![item("BV1")]),
+            false,
+        );
         assert!(app.current_playlist.is_none());
         assert!(app.results.is_empty());
 

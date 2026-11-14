@@ -982,9 +982,7 @@ impl ApiClient {
             );
         }
 
-        let folders = playlist_folders(
-            resp.data.and_then(|data| data.list).unwrap_or_default(),
-        );
+        let folders = playlist_folders(resp.data.and_then(|data| data.list).unwrap_or_default());
         let _ = crate::playlists::save_folders(&self.paths.data_dir, mid, &folders);
         Ok(folders)
     }
@@ -2811,5 +2809,4 @@ mod tests {
         assert_eq!(hidden_ids_for(&loaded, 42), vec![7]);
         let _ = std::fs::remove_dir_all(root);
     }
-
 }

@@ -33,8 +33,7 @@ pub struct Mpv {
 
 impl Mpv {
     pub fn new() -> Self {
-        let socket =
-            std::env::temp_dir().join(format!("bvox-mpv-{}.sock", std::process::id()));
+        let socket = std::env::temp_dir().join(format!("bvox-mpv-{}.sock", std::process::id()));
         Self {
             child: None,
             reader: None,
