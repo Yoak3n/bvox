@@ -179,6 +179,9 @@ pub struct App {
     /// Consecutive load failures while skipping unavailable tracks. Reset on
     /// a successful start or when a new queue is installed.
     pub play_failures: usize,
+    /// Why the last playback start failed. Exhausting the queue would
+    /// otherwise overwrite the real error with a generic guess.
+    pub play_error: Option<String>,
     pub playback_started: bool,
     pub eof: bool,
     /// True when a cookie is stored, even if the nav request cannot confirm
@@ -269,6 +272,7 @@ impl App {
             has_media: false,
             pending_play: false,
             play_failures: 0,
+            play_error: None,
             playback_started: false,
             eof: false,
             has_cookie: false,
@@ -952,6 +956,7 @@ impl App {
         let key = format!("{}#{}#{}", info.item.bvid, info.cid, info.page_index);
         self.pending_play = false;
         self.play_failures = 0;
+        self.play_error = None;
         self.now_playing = Some(info.item.clone());
         self.quality = info.quality.clone();
         self.page = info.page_index;
@@ -988,6 +993,7 @@ impl App {
     pub fn on_play_failed(&mut self, error: String) {
         self.pending_play = false;
         self.has_media = false;
+        self.play_error = Some(error.clone());
         self.set_status(&format!("播放失败: {error}"), true);
     }
 
@@ -1091,7 +1097,8 @@ impl App {
         self.play_failures += 1;
         if self.play_failures >= queue_len {
             self.play_failures = 0;
-            self.set_status("列表中没有可播放的歌曲（可能未缓存）", true);
+            let reason = self.play_error.as_deref().unwrap_or("可能未缓存");
+            self.set_status(&format!("列表中没有可播放的歌曲（{reason}）"), true);
             return None;
         }
         let request = match self.play_mode {
