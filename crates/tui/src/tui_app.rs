@@ -78,6 +78,7 @@ pub struct TuiState {
     pub cover: Option<CoverSet>,
     pub cover_protocol: Option<StatefulProtocol>,
     pub confirm: Option<ConfirmAction>,
+    pub show_help: bool,
 }
 
 impl TuiState {
@@ -90,6 +91,7 @@ impl TuiState {
             cover: None,
             cover_protocol: None,
             confirm: None,
+            show_help: false,
         }
     }
 
@@ -148,6 +150,16 @@ pub fn handle_key(app: &mut App, tui: &mut TuiState, key: KeyEvent) -> Action {
         return Action::Quit;
     }
 
+    if tui.show_help {
+        if matches!(
+            key.code,
+            KeyCode::Esc | KeyCode::Char('?') | KeyCode::Char('q')
+        ) {
+            tui.show_help = false;
+        }
+        return Action::None;
+    }
+
     if tui.confirm.is_some() {
         return handle_confirm_key(app, tui, key);
     }
@@ -163,6 +175,10 @@ pub fn handle_key(app: &mut App, tui: &mut TuiState, key: KeyEvent) -> Action {
 
     match key.code {
         KeyCode::Char('q') => return Action::Quit,
+        KeyCode::Char('?') => {
+            tui.show_help = true;
+            return Action::None;
+        }
         KeyCode::Char('/') | KeyCode::Char('s') => {
             start_input(app, InputMode::Search, "输入关键词，Enter 搜索，Esc 取消");
             return Action::None;

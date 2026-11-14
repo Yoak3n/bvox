@@ -63,6 +63,9 @@ pub fn draw(frame: &mut Frame, app: &App, tui: &mut TuiState) {
     } else if app.picker.is_some() {
         draw_picker(frame, app);
     }
+    if tui.show_help {
+        draw_help(frame);
+    }
 }
 
 fn draw_header(frame: &mut Frame, app: &App, area: Rect) {
@@ -533,18 +536,11 @@ fn draw_footer(frame: &mut Frame, app: &App, area: Rect) {
     }
 
     let help = if app.view == MainView::Library {
-        let toggle = if app.show_hidden {
-            "H 收起隐藏"
-        } else {
-            "H 显示隐藏"
-        };
-        format!(
-            " ↑/↓ 选择  Enter 打开  n 新建  r 改名  d 删除  h 隐藏/恢复  {toggle}  f 刷新  / 搜索  g 登录  o 音质  m 模式  c 缓存  C 清缓存  Esc 返回  q 退出 "
-        )
+        " ↑/↓ 选择  Enter 打开  n 新建  d 删除  / 搜索  ? 帮助  q 退出 "
     } else if app.current_playlist.is_some() {
-        " Enter 播放  space 暂停  n/p 切歌  a 加入歌单  d 移除  f 歌单  Esc 歌单  / 搜索  l 歌词  L 重拉歌词  b 导入BV  o 音质  m 模式  c 缓存  C 清缓存  q 退出 ".to_string()
+        " space 暂停  n/p 切歌  a 加入歌单  d 移除  l 歌词  ? 帮助  q 退出 "
     } else {
-        " Enter 播放  space 暂停  n/p 切歌  a 加入歌单  f 歌单  Esc 歌单  / 搜索  l 歌词  L 重拉歌词  b 导入BV  o 音质  m 模式  c 缓存  C 清缓存  q 退出 ".to_string()
+        " Enter 播放  space 暂停  n/p 切歌  l 歌词  f 歌单  / 搜索  ? 帮助  q 退出 "
     };
     frame.render_widget(
         Paragraph::new(help).style(Style::default().fg(Color::DarkGray)),
@@ -691,6 +687,97 @@ fn draw_picker(frame: &mut Frame, app: &App) {
         Paragraph::new(vec![Line::from(footer)]).style(Style::default().fg(Color::DarkGray)),
         parts[1],
     );
+}
+
+fn draw_help(frame: &mut Frame) {
+    let mut lines: Vec<Line> = Vec::new();
+    for (label, pairs) in [
+        (
+            "播放",
+            &[
+                ("space", "暂停/继续"),
+                ("←/→", "快退/快进 5s"),
+                ("n/p", "下一首/上一首"),
+                ("+/-", "音量 ±5"),
+                ("Enter", "播放选中"),
+                ("l", "歌词开关"),
+                ("L", "重拉歌词"),
+                ("Esc", "队列/返回"),
+            ][..],
+        ),
+        (
+            "视图",
+            &[
+                ("/", "搜索"),
+                ("b", "导入BV"),
+                ("f", "歌单库/刷新"),
+                ("g", "登录"),
+            ][..],
+        ),
+        (
+            "歌单",
+            &[
+                ("n", "新建"),
+                ("r", "改名"),
+                ("d", "删除/移除"),
+                ("h", "隐藏/恢复"),
+                ("H", "显示/收起隐藏"),
+                ("a", "加入歌单"),
+            ][..],
+        ),
+        (
+            "设置",
+            &[
+                ("o", "音质"),
+                ("m", "播放模式"),
+                ("c", "缓存模式"),
+                ("C", "清缓存"),
+            ][..],
+        ),
+    ] {
+        lines.extend(help_group_lines(label, pairs));
+    }
+    lines.push(Line::from(""));
+    lines.push(Line::from(Span::styled(
+        "  Esc 关闭",
+        Style::default().fg(Color::DarkGray),
+    )));
+
+    let area = centered(frame.area(), 46, lines.len() as u16 + 2);
+    frame.render_widget(Clear, area);
+    let block = Block::bordered()
+        .title(" 键位帮助 ")
+        .border_style(Style::default().fg(Color::Cyan));
+    let inner = block.inner(area);
+    frame.render_widget(block, area);
+    frame.render_widget(Paragraph::new(lines), inner);
+}
+
+fn help_group_lines(label: &str, pairs: &[(&str, &str)]) -> Vec<Line<'static>> {
+    let mut lines = vec![Line::from(Span::styled(
+        label.to_string(),
+        Style::default()
+            .fg(Color::Cyan)
+            .add_modifier(Modifier::BOLD),
+    ))];
+    for chunk in pairs.chunks(2) {
+        let mut spans = vec![Span::raw("  ")];
+        for (index, (key, desc)) in chunk.iter().enumerate() {
+            if index > 0 {
+                spans.push(Span::styled("   ", Style::default().fg(Color::DarkGray)));
+            }
+            spans.push(Span::styled(
+                format!("{key:<7}"),
+                Style::default().fg(Color::White),
+            ));
+            spans.push(Span::styled(
+                (*desc).to_string(),
+                Style::default().fg(Color::Gray),
+            ));
+        }
+        lines.push(Line::from(spans));
+    }
+    lines
 }
 
 fn draw_confirm(frame: &mut Frame, tui: &TuiState) {
