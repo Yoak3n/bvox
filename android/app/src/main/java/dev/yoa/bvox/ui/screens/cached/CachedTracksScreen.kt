@@ -37,7 +37,7 @@ import dev.yoa.bvox.ui.theme.BvoxColors
  * cannot be loaded (no network, expired cookie, empty cache of playlists).
  */
 @Composable
-fun CachedTracksScreen(
+internal fun CachedTracksScreen(
     state: Snapshot,
     onBack: () -> Unit,
     onPlay: (String) -> Unit,

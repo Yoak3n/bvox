@@ -15,7 +15,7 @@ import androidx.compose.ui.graphics.Color
  * square canvas, sized to the smaller of the incoming width/height.
  */
 @Composable
-fun QrCodeView(matrix: List<List<Boolean>>, modifier: Modifier = Modifier) {
+internal fun QrCodeView(matrix: List<List<Boolean>>, modifier: Modifier = Modifier) {
     BoxWithConstraints(
         modifier = modifier,
         contentAlignment = Alignment.Center,

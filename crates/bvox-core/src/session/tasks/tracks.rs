@@ -7,8 +7,8 @@ use tokio::sync::mpsc;
 
 use crate::api::{ApiClient, FavoriteFolder, VideoItem, format_secs};
 use crate::app::BvImport;
+use crate::session::input::{parse_bvid, share_link};
 use crate::session::msg::Msg;
-use crate::session::parse::{parse_bvid, share_link};
 
 /// Resolve the aid without a `view` request whenever the item already has it.
 pub(in crate::session) async fn resolve_aid(

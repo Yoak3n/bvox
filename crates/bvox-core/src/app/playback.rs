@@ -51,8 +51,7 @@ impl App {
         self.play_error = Some(error.clone());
         self.set_status(&format!("播放失败: {error}"), true);
     }
-}
-impl App {
+
     pub fn on_player_state(&mut self, state: PlayerState) {
         self.volume = state.volume;
         if !self.has_media {
@@ -74,8 +73,7 @@ impl App {
             self.playback_started = false;
         }
     }
-}
-impl App {
+
     /// Consume the EOF flag so auto-advance runs exactly once per track end.
     pub fn take_eof(&mut self) -> bool {
         let eof = self.eof;

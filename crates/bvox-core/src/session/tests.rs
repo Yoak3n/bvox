@@ -1,6 +1,6 @@
 //! Tests for session input parsing.
 
-use super::parse::{parse_bvid, share_link};
+use super::input::{parse_bvid, share_link};
 use super::tasks::playback::track_display_title;
 
 #[test]

@@ -109,6 +109,4 @@ impl Session {
         }
         let _ = self.tx.send(Msg::StateChanged);
     }
-
-    // ----- playlist (favorite folder) commands ----------------------------
 }

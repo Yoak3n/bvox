@@ -19,7 +19,7 @@ import androidx.compose.ui.unit.sp
  * "Night Vinyl" palette: an ink-dark stage with Bilibili pink and violet
  * stage lights. Cards are translucent white so the gradient bleeds through.
  */
-object BvoxColors {
+internal object BvoxColors {
     /** Fixed dark presentation; the light set stays for dialogs/WebView shells. */
     var isDark: Boolean = true
 
@@ -64,7 +64,7 @@ object BvoxColors {
     val BackgroundGradient get() = listOf(BgGradientTop, BgGradientMiddle, BgGradientBottom)
 }
 
-object BvoxRadius {
+internal object BvoxRadius {
     // Dp, not Int: RoundedCornerShape(Int) is a percentage and 999 would crash.
     val Sm = 14.dp
     val Md = 18.dp
@@ -73,7 +73,7 @@ object BvoxRadius {
     val Pill = 999.dp
 }
 
-object BvoxSpacing {
+internal object BvoxSpacing {
     val Xs = 4.dp
     val Sm = 8.dp
     val Md = 12.dp
@@ -82,7 +82,7 @@ object BvoxSpacing {
     val Xxl = 24.dp
 }
 
-object BvoxDimens {
+internal object BvoxDimens {
     val PageHorizontal = 20.dp
     val Hairline = 1.dp
 
@@ -101,7 +101,7 @@ object BvoxDimens {
     val ActionIcon = 20.dp
 }
 
-object BvoxMotion {
+internal object BvoxMotion {
     const val PageTransitionMillis = 180
     const val PageFadeOutMillis = 90
     const val BottomNavMillis = 140
@@ -113,7 +113,7 @@ object BvoxMotion {
     val EaseOut = CubicBezierEasing(0.22f, 1f, 0.36f, 1f)
 }
 
-val BvoxTypography = Typography(
+internal val BvoxTypography = Typography(
     displaySmall = TextStyle(
         fontFamily = FontFamily.SansSerif,
         fontWeight = FontWeight.Bold,
@@ -183,7 +183,7 @@ val BvoxTypography = Typography(
     ),
 )
 
-val BvoxShapes = Shapes(
+internal val BvoxShapes = Shapes(
     extraSmall = RoundedCornerShape(10.dp),
     small = RoundedCornerShape(14.dp),
     medium = RoundedCornerShape(18.dp),
@@ -246,7 +246,7 @@ private val LightScheme = lightColorScheme(
 )
 
 @Composable
-fun BvoxTheme(
+internal fun BvoxTheme(
     darkTheme: Boolean = true,
     content: @Composable () -> Unit,
 ) {

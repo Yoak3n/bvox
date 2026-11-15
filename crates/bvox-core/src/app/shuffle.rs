@@ -53,8 +53,7 @@ impl App {
             self.start_queue_index(previous, false)
         }
     }
-}
-impl App {
+
     /// Rebuild the shuffle bag around the current track. Called when the
     /// queue changes or the user switches to shuffle mode.
     pub fn reset_shuffle(&mut self) {

@@ -18,8 +18,7 @@ impl App {
         self.set_status("正在生成登录二维码…", false);
         self.login_seq
     }
-}
-impl App {
+
     pub fn on_login_qr(&mut self, seq: u64, matrix: Vec<Vec<bool>>) {
         if seq != self.login_seq {
             return;

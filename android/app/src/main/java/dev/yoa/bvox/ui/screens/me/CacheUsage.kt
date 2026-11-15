@@ -1,91 +1,50 @@
 package dev.yoa.bvox.ui.screens.me
 
-import androidx.compose.animation.Crossfade
-import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
-import androidx.compose.foundation.BorderStroke
-import androidx.compose.foundation.Image
-import androidx.compose.foundation.LocalIndication
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
-import androidx.compose.foundation.clickable
-import androidx.compose.foundation.interaction.MutableInteractionSource
-import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxHeight
-import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.rounded.Logout
-import androidx.compose.material.icons.rounded.Cached
-import androidx.compose.material.icons.rounded.ExpandMore
-import androidx.compose.material.icons.rounded.Lyrics
-import androidx.compose.material.icons.rounded.MusicNote
-import androidx.compose.material.icons.rounded.Person
-import androidx.compose.material.icons.rounded.Tune
-import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.saveable.rememberSaveable
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.graphicsLayer
-import androidx.compose.ui.graphics.vector.ImageVector
-import androidx.compose.ui.layout.ContentScale
-import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 
-
-
-import dev.yoa.bvox.core.CacheMode
-import dev.yoa.bvox.core.CacheUsage
-import dev.yoa.bvox.core.Snapshot
-import dev.yoa.bvox.ui.components.GlassCard
-import dev.yoa.bvox.ui.components.PillButton
-import dev.yoa.bvox.ui.components.ScreenHeader
-import dev.yoa.bvox.ui.components.StatusLine
-import dev.yoa.bvox.ui.components.rememberRemoteImage
 import dev.yoa.bvox.ui.theme.BvoxColors
-import dev.yoa.bvox.ui.theme.BvoxDimens
 import dev.yoa.bvox.ui.theme.BvoxMotion
-import dev.yoa.bvox.ui.theme.BvoxRadius
 import java.util.Locale
 import kotlin.math.roundToInt
-import dev.yoa.bvox.core.CoreHolder
-import dev.yoa.bvox.lyrics.LyricDisplayPrefs
-import dev.yoa.bvox.prefs.CachePrefs
-import dev.yoa.bvox.ui.screens.cached.CachedTracksScreen
-import dev.yoa.bvox.ui.screens.lyrics.LyricSettingsScreen
-import dev.yoa.bvox.ui.dialogs.CacheModeDialog
-import dev.yoa.bvox.ui.dialogs.CacheLimitDialog
 
+internal const val BYTES_PER_MB = 1024.0 * 1024.0
 
+/** One colored segment of the cache bar; the legend uses the same values. */
+internal data class CacheSlice(val label: String, val mb: Float, val color: Color)
+
+/** Animated per-category size in MiB; snapshots glide instead of snapping. */
+@Composable
+internal fun animatedCacheMb(bytes: ULong?): Float =
+    animateFloatAsState(
+        targetValue = (bytes ?: 0uL).toDouble().div(BYTES_PER_MB).toFloat(),
+        animationSpec = tween(420, easing = BvoxMotion.EaseOut),
+        label = "cache_slice_mb",
+    ).value
+
+/** Composition bar: its length is `used / limit`, split by cache type. */
 @Composable
 internal fun CacheUsageBar(
     fill: Float,
@@ -168,5 +127,3 @@ internal fun formatBytes(bytes: Double): String = when {
         String.format(Locale.US, "%.1f KB", bytes / 1024.0)
     else -> "${bytes.roundToInt()} B"
 }
-
-/** Small 大会员 tag; Bilibili's membership color is pink, not gold. */

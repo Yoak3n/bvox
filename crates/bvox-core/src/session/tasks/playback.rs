@@ -14,6 +14,18 @@ use crate::player::{Player, PlayerConfig};
 use crate::session::msg::Msg;
 use crate::session::tasks::cache::spawn_cache_download;
 
+/// Resolved playback data: video detail, stream source, page index/count,
+/// part title, page duration and the page summaries shown in the picker.
+type PlayResolution = (
+    VideoDetail,
+    AudioSource,
+    usize,
+    usize,
+    String,
+    i64,
+    Vec<PageSummary>,
+);
+
 /// One-line explanation of what a preference resolves to for this account.
 pub(in crate::session) fn quality_status(quality: AudioQuality, vip: bool) -> String {
     let hint = match (quality, vip) {
@@ -58,15 +70,7 @@ pub(in crate::session) fn spawn_play(
             start_at,
         } = request;
         let item_pic = item.pic.clone();
-        let result: Result<(
-            VideoDetail,
-            AudioSource,
-            usize,
-            usize,
-            String,
-            i64,
-            Vec<PageSummary>,
-        )> = async {
+        let result: Result<PlayResolution> = async {
             let detail = api.view(&item.bvid).await?;
             let pages = if detail.pages.is_empty() {
                 vec![VideoPage {

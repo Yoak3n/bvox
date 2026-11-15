@@ -3,8 +3,9 @@
 use anyhow::{Context, Result, bail};
 use serde::Deserialize;
 
+use super::clean_title;
 use super::sign::{mixin_key, signed_query};
-use super::text::{clean_title, normalize_url};
+use super::text::normalize_url;
 use super::video::normalize_duration;
 use super::{ApiClient, SearchPage, VideoItem};
 

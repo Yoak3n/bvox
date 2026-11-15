@@ -9,8 +9,8 @@ use tokio::sync::Mutex;
 
 use crate::CorePaths;
 use crate::cache::Cache;
+use dns::Ipv4FirstResolver;
 use login::load_saved_cookie;
-use transport::Ipv4FirstResolver;
 
 pub const UA: &str = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36";
 pub const REFERER: &str = "https://www.bilibili.com/";
@@ -19,13 +19,16 @@ pub const CONFIG_DIR_NAME: &str = "bvox";
 
 mod account;
 mod audio;
+mod dns;
 mod image;
 #[cfg(test)]
 mod library_tests;
 mod login;
 mod lyrics;
 mod model;
+mod playlist_form;
 mod playlists;
+mod playurl;
 mod quality;
 mod search;
 mod sign;
@@ -38,13 +41,14 @@ mod transport;
 mod video;
 
 pub use crate::duration::format_secs;
+pub use crate::format::quality_label;
+pub use crate::model::{LyricLine, VideoDetail, VideoPage};
+pub(crate) use crate::title::clean_title;
 pub(crate) use image::cover_thumbnail_url;
 pub use model::{
-    AudioSource, AudioStream, FavoriteFolder, LyricLine, QrLogin, QrPhase, SearchPage, UserInfo,
-    VideoDetail, VideoItem, VideoPage,
+    AudioSource, AudioStream, FavoriteFolder, QrLogin, QrPhase, SearchPage, UserInfo, VideoItem,
 };
-pub use quality::{AudioQuality, PlayMode, quality_label};
-pub(crate) use text::clean_title;
+pub use quality::{AudioQuality, PlayMode};
 
 pub struct ApiClient {
     paths: CorePaths,

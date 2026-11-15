@@ -7,7 +7,7 @@ package dev.yoa.bvox.lyrics
  * bilingual subtitle (or null); [next] is the following non-empty line, used
  * as the second row when the subtitle has no translation.
  */
-data class LyricUiLine(
+internal data class LyricUiLine(
     val primary: String,
     val translation: String?,
     val next: String?,

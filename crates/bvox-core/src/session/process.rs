@@ -3,7 +3,7 @@
 use crate::session::Session;
 use crate::session::msg::{CoreEvent, Msg};
 use crate::session::tasks::cover::spawn_cover;
-use crate::session::tasks::lyrics::spawn_lyrics;
+use crate::session::tasks::lyrics::{LyricsRequest, spawn_lyrics};
 
 impl Session {
     // ----- event pump -----------------------------------------------------
@@ -67,12 +67,14 @@ impl Session {
                 spawn_lyrics(
                     &self.api,
                     self.tx.clone(),
-                    self.app.lyrics_key.clone(),
-                    aid,
-                    bvid,
-                    cid,
-                    seq,
-                    false,
+                    LyricsRequest {
+                        key: self.app.lyrics_key.clone(),
+                        aid,
+                        bvid,
+                        cid,
+                        seq,
+                        refresh: false,
+                    },
                 );
             }
             Msg::PlayFailed(error) => {
@@ -100,12 +102,14 @@ impl Session {
                         spawn_lyrics(
                             &self.api,
                             self.tx.clone(),
-                            self.app.lyrics_key.clone(),
-                            item.aid,
-                            item.bvid,
-                            self.app.current_cid,
-                            seq,
-                            true,
+                            LyricsRequest {
+                                key: self.app.lyrics_key.clone(),
+                                aid: item.aid,
+                                bvid: item.bvid,
+                                cid: self.app.current_cid,
+                                seq,
+                                refresh: true,
+                            },
                         );
                     }
                     self.refresh_playlists();

@@ -16,16 +16,16 @@ use tasks::cover::spawn_cover;
 use tasks::login::spawn_user_info;
 
 mod commands;
+mod input;
 mod lifecycle;
 mod msg;
-mod parse;
 mod process;
 mod tasks;
 #[cfg(test)]
 mod tests;
 
+pub use input::parse_bvid;
 pub use msg::{CoreEvent, Msg};
-pub use parse::parse_bvid;
 
 /// How far playback may advance before the position is written to disk again.
 const PROGRESS_SAVE_INTERVAL_SECS: f64 = 5.0;

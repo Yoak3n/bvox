@@ -78,8 +78,7 @@ impl Session {
             self.app.set_error(error);
         }
     }
-}
-impl Session {
+
     pub async fn seek(&mut self, delta: f64) {
         if self.player.is_started().await
             && let Err(error) = self.player.seek(delta).await
@@ -124,8 +123,7 @@ impl Session {
             .set_status(&format!("播放模式：{}", mode.label()), false);
         let _ = self.tx.send(Msg::StateChanged);
     }
-}
-impl Session {
+
     /// Advance to the previous/next track (TUI's `n`/`p`).
     pub fn step_track(&mut self, delta: isize) {
         if let Some(request) = self.app.step(delta) {

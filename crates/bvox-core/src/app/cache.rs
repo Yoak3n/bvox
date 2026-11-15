@@ -8,8 +8,7 @@ impl App {
     pub fn is_cached(&self, bvid: &str) -> bool {
         self.cached_bvids.contains(bvid)
     }
-}
-impl App {
+
     pub fn on_cache_progress(&mut self, key: String, downloaded: u64, total: Option<u64>) {
         if key == self.playback_key {
             self.cache_progress = Some((downloaded, total));
@@ -25,8 +24,7 @@ impl App {
             self.cached_now = true;
         }
     }
-}
-impl App {
+
     /// Replace the queue with the offline cached tracks. Playback uses the
     /// normal path so `view`/audio cache hits keep working without network.
     pub fn show_cached_tracks(&mut self, items: Vec<VideoItem>) {

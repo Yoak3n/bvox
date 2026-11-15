@@ -79,8 +79,7 @@ impl App {
         };
         self.start_queue_index(index, false)
     }
-}
-impl App {
+
     pub(super) fn start_queue_index(
         &mut self,
         index: usize,
@@ -108,14 +107,12 @@ impl App {
             start_at: 0.0,
         })
     }
-}
-impl App {
+
     pub fn play_selected(&mut self) -> Option<PlayRequest> {
         let index = self.selected?;
         self.play_at(index)
     }
-}
-impl App {
+
     /// Start playing the queue entry at `index` from its first page.
     pub fn play_at(&mut self, index: usize) -> Option<PlayRequest> {
         let item = self.results.get(index)?.clone();

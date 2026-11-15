@@ -33,7 +33,7 @@ import dev.yoa.bvox.playback.PlaybackService
 
 
 /** Observable UI state fed by the core's events. */
-class AppModel {
+internal class AppModel {
     /** Latest `Core::snapshot`, refreshed on every StateChanged event. */
     val snapshot = MutableStateFlow<dev.yoa.bvox.core.Snapshot?>(null)
 
@@ -42,7 +42,7 @@ class AppModel {
 }
 
 /** Forwards ExoPlayer commands coming from the Rust core. */
-class ExoPlayerBridge : PlayerBridge {
+internal class ExoPlayerBridge : PlayerBridge {
 
     private data class LoadRequest(
         val url: String,
@@ -180,7 +180,7 @@ class ExoPlayerBridge : PlayerBridge {
 }
 
 /** Pushes session events from tokio worker threads into the Compose-friendly model. */
-class ObserverRelay(
+internal class ObserverRelay(
     private val coreProvider: () -> Core,
     private val model: AppModel,
 ) : CoreObserver {
@@ -218,7 +218,7 @@ class ObserverRelay(
 }
 
 /** Process-wide singletons: the Rust core and the controller connection. */
-object CoreHolder {
+internal object CoreHolder {
 
     lateinit var core: Core
         private set

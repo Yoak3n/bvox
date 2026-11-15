@@ -8,22 +8,15 @@ import android.widget.Toast
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
-import androidx.compose.foundation.background
-import androidx.compose.foundation.border
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.ArrowBack
 import androidx.compose.material.icons.rounded.Lyrics
@@ -42,9 +35,6 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 
@@ -55,14 +45,6 @@ import dev.yoa.bvox.lyrics.LyricDisplayPrefs
 
 
 /** Text color presets for the floating lyric window. */
-private val LyricColorChoices = listOf(
-    Color.White,
-    Color(0xFFFB7299),
-    Color(0xFF8B7CFF),
-    Color(0xFF4DD0E1),
-    Color(0xFFFFD54F),
-    Color(0xFF9AE66E),
-)
 
 /**
  * Second-level lyric display settings: the floating window and the media
@@ -70,7 +52,7 @@ private val LyricColorChoices = listOf(
  * scannable.
  */
 @Composable
-fun LyricSettingsScreen(onBack: () -> Unit) {
+internal fun LyricSettingsScreen(onBack: () -> Unit) {
     val context = LocalContext.current
 
     var overlayEnabled by remember {
@@ -214,39 +196,13 @@ fun LyricSettingsScreen(onBack: () -> Unit) {
                             valueRange = 14f..28f,
                             steps = 13,
                         )
-                        Text(
-                            text = "颜色",
-                            style = MaterialTheme.typography.labelMedium,
-                            color = BvoxColors.TextSecondary,
+                        LyricColorPicker(
+                            selectedArgb = textColor,
+                            onSelect = {
+                                textColor = it
+                                LyricDisplayPrefs.setTextColor(context, it)
+                            },
                         )
-                        Row(
-                            modifier = Modifier.padding(top = 8.dp),
-                            horizontalArrangement = Arrangement.spacedBy(12.dp),
-                        ) {
-                            LyricColorChoices.forEach { color ->
-                                val argb = color.toArgb()
-                                val selected = argb == textColor
-                                Box(
-                                    modifier = Modifier
-                                        .size(28.dp)
-                                        .clip(CircleShape)
-                                        .background(color)
-                                        .border(
-                                            width = if (selected) 3.dp else 1.dp,
-                                            color = if (selected) {
-                                                BvoxColors.TextPrimary
-                                            } else {
-                                                Color.White.copy(alpha = 0.25f)
-                                            },
-                                            shape = CircleShape,
-                                        )
-                                        .clickable {
-                                            textColor = argb
-                                            LyricDisplayPrefs.setTextColor(context, argb)
-                                        },
-                                )
-                            }
-                        }
                         SettingToggle(
                             title = "双行歌词",
                             subtitle = "优先显示翻译，没有翻译时显示下一行",
@@ -318,52 +274,5 @@ fun LyricSettingsScreen(onBack: () -> Unit) {
                 }
             }
         }
-    }
-}
-
-@Composable
-private fun SectionIcon(icon: androidx.compose.ui.graphics.vector.ImageVector) {
-    Box(
-        modifier = Modifier
-            .size(44.dp)
-            .clip(CircleShape)
-            .background(BvoxColors.BrandPrimarySoft),
-        contentAlignment = Alignment.Center,
-    ) {
-        Icon(
-            imageVector = icon,
-            contentDescription = null,
-            tint = BvoxColors.BrandPrimary,
-            modifier = Modifier.size(22.dp),
-        )
-    }
-}
-
-@Composable
-private fun SettingToggle(
-    title: String,
-    subtitle: String,
-    checked: Boolean,
-    onCheckedChange: (Boolean) -> Unit,
-) {
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(top = 4.dp),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        Column(modifier = Modifier.weight(1f)) {
-            Text(
-                text = title,
-                style = MaterialTheme.typography.titleSmall,
-                color = BvoxColors.TextPrimary,
-            )
-            Text(
-                text = subtitle,
-                style = MaterialTheme.typography.bodySmall,
-                color = BvoxColors.TextTertiary,
-            )
-        }
-        Switch(checked = checked, onCheckedChange = onCheckedChange)
     }
 }

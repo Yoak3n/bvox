@@ -162,14 +162,13 @@ impl Mpv {
             })
             .await;
 
-            if let Some(mut child) = self.child.take() {
-                if timeout(Duration::from_millis(700), child.wait())
+            if let Some(mut child) = self.child.take()
+                && timeout(Duration::from_millis(700), child.wait())
                     .await
                     .is_err()
-                {
-                    let _ = child.start_kill();
-                    let _ = timeout(Duration::from_millis(300), child.wait()).await;
-                }
+            {
+                let _ = child.start_kill();
+                let _ = timeout(Duration::from_millis(300), child.wait()).await;
             }
         }
         self.child = None;

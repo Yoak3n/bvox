@@ -5,8 +5,6 @@ use super::PlaylistPicker;
 use crate::api::FavoriteFolder;
 
 impl App {
-    /// Open the add-to-playlist picker. Returns false when the folder list is
-    /// still empty, in which case the caller should load it first.
     /// Open the add-to-playlist picker. The folder list may still be empty;
     /// the session refreshes it and the picker fills in when the response
     /// lands. A parked import adds a final "new playlist" row.

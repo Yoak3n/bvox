@@ -6,8 +6,11 @@
 //! thin frontends over this crate.
 
 mod duration;
+mod format;
+mod model;
 mod paths;
 mod playlist_store;
+mod title;
 
 pub mod api;
 pub mod app;

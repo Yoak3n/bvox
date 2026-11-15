@@ -130,13 +130,13 @@ impl Cache {
                         cid,
                         page_index: page_index as u32,
                         aid: detail.aid,
-                        title: crate::api::clean_title(&detail.title),
+                        title: crate::title::clean_title(&detail.title),
                         author: detail.author.clone(),
-                        duration: crate::api::format_secs(duration),
+                        duration: crate::format_secs(duration),
                         pic: detail.pic.clone(),
                         quality: format!(
                             "{} · {} kbps",
-                            crate::api::quality_label(quality_id),
+                            crate::format::quality_label(quality_id),
                             bandwidth / 1000
                         ),
                         part: page.map(|page| page.part.clone()).unwrap_or_default(),
@@ -172,8 +172,7 @@ impl Cache {
         self.evict(Some(final_path));
         Ok(())
     }
-}
-impl Cache {
+
     fn remove_other_audio(&self, bvid: &str, cid: i64, keep: &Path) {
         let Ok(entries) = std::fs::read_dir(self.root.join("audio")) else {
             return;

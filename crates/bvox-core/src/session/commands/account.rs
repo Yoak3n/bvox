@@ -8,9 +8,6 @@ impl Session {
         spawn_login(&self.api, self.tx.clone(), seq);
     }
 
-    // ----- cache management ------------------------------------------------
-}
-impl Session {
     /// Open the QR login modal and start polling (TUI's `g`).
     pub fn open_login(&mut self) {
         let seq = self.app.open_login();

@@ -119,8 +119,7 @@ impl App {
         let playlists = self.library_playlists();
         playlists.get(self.playlist_selected?).cloned()
     }
-}
-impl App {
+
     pub fn on_playlists_loaded(
         &mut self,
         seq: u64,
@@ -173,8 +172,7 @@ impl App {
             Err(error) => self.set_status(&format!("保存隐藏状态失败: {error}"), true),
         }
     }
-}
-impl App {
+
     pub fn on_playlist_opened(
         &mut self,
         seq: u64,

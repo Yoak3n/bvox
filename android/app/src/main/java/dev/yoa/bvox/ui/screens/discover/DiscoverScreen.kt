@@ -59,7 +59,7 @@ import dev.yoa.bvox.ui.theme.BvoxRadius
 
 /** Search + results. The core uses one queue list, so results are the queue. */
 @Composable
-fun DiscoverScreen(
+internal fun DiscoverScreen(
     state: Snapshot,
     onSearch: (String) -> Unit,
     onLoadMore: () -> Unit,

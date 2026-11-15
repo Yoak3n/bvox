@@ -2,8 +2,19 @@
 
 use crate::session::Session;
 use crate::session::msg::Msg;
+use crate::session::tasks::tracks::spawn_import_bv;
 
 impl Session {
+    /// Import a BV id / link. With `target_open_playlist` the currently open
+    /// playlist is the destination (TUI keyboard flow); otherwise the track
+    /// only parks in the queue and the frontend asks which folder to use.
+    pub fn import_bv(&mut self, raw: String, target_open_playlist: bool) {
+        let playlist = target_open_playlist
+            .then(|| self.app.current_playlist.clone())
+            .flatten();
+        spawn_import_bv(&self.api, self.tx.clone(), raw, playlist);
+    }
+
     /// Drop the import that was waiting for a new playlist.
     pub fn cancel_pending_import(&mut self) {
         if self.app.pending_import.take().is_some() {

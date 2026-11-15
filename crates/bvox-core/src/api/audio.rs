@@ -3,10 +3,10 @@
 use std::time::{Duration, Instant};
 
 use anyhow::{Context, Result, bail};
-use serde::Deserialize;
 use tokio::io::AsyncWriteExt;
 
-use super::quality::is_premium_audio;
+use super::playurl::{AudioTrack, PlayUrlResponse};
+use super::quality::{is_premium_audio, preferred_kind, track_kind};
 use super::sign::encode_component;
 use super::text::snippet;
 use super::{ApiClient, AudioQuality, AudioSource, AudioStream, REFERER, UA};
@@ -271,71 +271,9 @@ pub(super) fn order_audio_candidates(
     candidates
 }
 
-#[derive(Clone, Copy, PartialEq, Eq)]
-pub(super) enum TrackKind {
-    Aac,
-    Dolby,
-    HiRes,
-}
-
-pub(super) fn track_kind(id: i64) -> TrackKind {
-    match id {
-        30250 => TrackKind::Dolby,
-        30251 => TrackKind::HiRes,
-        _ => TrackKind::Aac,
-    }
-}
-
-/// The kind of track a preference would pick first when it is available.
-pub(super) fn preferred_kind(preference: AudioQuality, vip: bool) -> TrackKind {
-    match (preference, vip) {
-        (AudioQuality::Auto, true) | (AudioQuality::HiRes, _) => TrackKind::HiRes,
-        (AudioQuality::Dolby, _) => TrackKind::Dolby,
-        _ => TrackKind::Aac,
-    }
-}
 /// Report download progress roughly 20 times, clamped to sane chunk sizes.
 pub(super) fn progress_step(total: Option<u64>) -> u64 {
     total
         .map(|total| (total / 20).clamp(64 * 1024, 1024 * 1024))
         .unwrap_or(256 * 1024)
-}
-#[derive(Deserialize)]
-pub(super) struct PlayUrlResponse {
-    pub(super) code: i64,
-    pub(super) message: Option<String>,
-    pub(super) data: Option<PlayUrlData>,
-}
-
-#[derive(Deserialize)]
-pub(super) struct PlayUrlData {
-    pub(super) dash: Option<Dash>,
-}
-
-#[derive(Deserialize)]
-pub(super) struct Dash {
-    pub(super) audio: Option<Vec<AudioTrack>>,
-    pub(super) dolby: Option<Dolby>,
-    pub(super) flac: Option<Flac>,
-}
-
-#[derive(Deserialize)]
-pub(super) struct Dolby {
-    pub(super) audio: Option<Vec<AudioTrack>>,
-}
-
-#[derive(Deserialize)]
-pub(super) struct Flac {
-    pub(super) audio: Option<AudioTrack>,
-}
-
-#[derive(Deserialize)]
-pub(super) struct AudioTrack {
-    pub(super) id: i64,
-    #[serde(default)]
-    pub(super) bandwidth: i64,
-    #[serde(default, rename = "baseUrl")]
-    pub(super) base_url: Option<String>,
-    #[serde(default, rename = "backupUrl")]
-    pub(super) backup_url: Vec<String>,
 }

@@ -70,8 +70,7 @@ impl Cache {
         }
         freed
     }
-}
-impl Cache {
+
     /// Drop least recently used files until the cache is back under 90% of the
     /// configured limit. `keep` is the file that was just written.
     pub(super) fn evict(&self, keep: Option<&Path>) {

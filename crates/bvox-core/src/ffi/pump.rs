@@ -8,7 +8,8 @@ use super::bridge::CoreObserver;
 use super::types::CoreEvent;
 use crate::session::{CoreEvent as SessionEvent, Msg, Session};
 
-/// messages into observer events.
+/// Drain session messages and forward them to the observer until the channel
+/// closes.
 pub(super) async fn pump_loop(
     session: Arc<Mutex<Session>>,
     mut msg_rx: tokio::sync::mpsc::UnboundedReceiver<Msg>,

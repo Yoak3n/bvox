@@ -3,9 +3,9 @@
 use super::account::{
     HiddenPlaylists, hidden_ids_for, load_hidden_playlists, save_hidden_playlists, set_hidden_id,
 };
+use super::playlist_form::{deal_body, folder_create_body, folder_delete_body, folder_edit_body};
 use super::playlists::{
-    FavoriteFoldersResponse, FavoriteItemsResponse, FavoriteMediaRaw, deal_body,
-    folder_create_body, folder_delete_body, folder_edit_body, playlist_folders,
+    FavoriteFoldersResponse, FavoriteItemsResponse, FavoriteMediaRaw, playlist_folders,
 };
 use super::search::SearchResponse;
 

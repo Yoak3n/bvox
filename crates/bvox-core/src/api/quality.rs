@@ -59,6 +59,31 @@ pub(super) fn is_premium_audio(id: i64) -> bool {
     matches!(id, 30250 | 30251)
 }
 
+/// Stream family a track id belongs to.
+#[derive(Clone, Copy, PartialEq, Eq)]
+pub(super) enum TrackKind {
+    Aac,
+    Dolby,
+    HiRes,
+}
+
+pub(super) fn track_kind(id: i64) -> TrackKind {
+    match id {
+        30250 => TrackKind::Dolby,
+        30251 => TrackKind::HiRes,
+        _ => TrackKind::Aac,
+    }
+}
+
+/// The kind of track a preference would pick first when it is available.
+pub(super) fn preferred_kind(preference: AudioQuality, vip: bool) -> TrackKind {
+    match (preference, vip) {
+        (AudioQuality::Auto, true) | (AudioQuality::HiRes, _) => TrackKind::HiRes,
+        (AudioQuality::Dolby, _) => TrackKind::Dolby,
+        _ => TrackKind::Aac,
+    }
+}
+
 /// How playback continues after the current track ends.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, uniffi::Enum)]
 pub enum PlayMode {
@@ -109,15 +134,5 @@ impl PlayMode {
             "shuffle" => Some(Self::Shuffle),
             _ => None,
         }
-    }
-}
-pub fn quality_label(id: i64) -> &'static str {
-    match id {
-        30216 => "64K",
-        30232 => "132K",
-        30280 => "192K",
-        30250 => "Dolby",
-        30251 => "Hi-Res",
-        _ => "AAC",
     }
 }

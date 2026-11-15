@@ -5,7 +5,7 @@ use super::*;
 use super::account::NavResponse;
 use super::login::{cookie_from_set_cookies, cookie_from_url};
 use super::sign::{encode_component, mixin_key};
-use super::text::{clean_title, normalize_url};
+use super::text::normalize_url;
 use super::transport::cookie_field;
 use super::video::normalize_duration;
 

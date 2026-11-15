@@ -23,8 +23,7 @@ impl App {
             }
         }
     }
-}
-impl App {
+
     pub fn lyric_cursor(&self) -> (usize, bool) {
         let time = self.position + 0.2;
         let mut cursor = 0;

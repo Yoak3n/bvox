@@ -6,7 +6,7 @@ use std::path::PathBuf;
 
 use serde::{Deserialize, Serialize};
 
-use crate::api::{LyricLine, VideoDetail};
+use crate::model::{LyricLine, VideoDetail};
 
 pub(super) const VIEW_TTL: Duration = Duration::from_secs(24 * 60 * 60);
 pub(super) const STALE_PART_AGE: Duration = Duration::from_secs(24 * 60 * 60);
@@ -124,20 +124,4 @@ pub struct CacheStats {
     pub lyrics_bytes: u64,
     pub view_bytes: u64,
     pub file_count: u64,
-}
-
-/// Human-readable size for UI labels (`12.3 MB`).
-pub fn format_bytes(bytes: u64) -> String {
-    const KB: u64 = 1024;
-    const MB: u64 = KB * 1024;
-    const GB: u64 = MB * 1024;
-    if bytes >= GB {
-        format!("{:.1} GB", bytes as f64 / GB as f64)
-    } else if bytes >= MB {
-        format!("{:.1} MB", bytes as f64 / MB as f64)
-    } else if bytes >= KB {
-        format!("{:.1} KB", bytes as f64 / KB as f64)
-    } else {
-        format!("{bytes} B")
-    }
 }

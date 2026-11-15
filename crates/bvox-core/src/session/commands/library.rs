@@ -7,7 +7,7 @@ use crate::session::tasks::library::{
     spawn_create_playlist, spawn_delete_playlist, spawn_open_playlist, spawn_playlists,
     spawn_rename_playlist, spawn_set_playlist_hidden,
 };
-use crate::session::tasks::tracks::{spawn_add_track, spawn_import_bv, spawn_remove_track};
+use crate::session::tasks::tracks::{spawn_add_track, spawn_remove_track};
 
 impl Session {
     /// Show the playlist library, loading folders when possible.
@@ -48,8 +48,7 @@ impl Session {
         let pending = self.app.take_pending_import();
         spawn_create_playlist(&self.api, self.tx.clone(), title, pending);
     }
-}
-impl Session {
+
     pub fn rename_playlist(&self, folder_id: i64, title: String) {
         spawn_rename_playlist(&self.api, self.tx.clone(), folder_id, title);
     }
@@ -109,16 +108,4 @@ impl Session {
             .cloned();
         spawn_remove_track(&self.api, self.tx.clone(), folder_id, bvid, item);
     }
-
-    /// Import a BV id / link. With `target_open_playlist` the currently open
-    /// playlist is the destination (TUI keyboard flow); otherwise the track
-    /// only parks in the queue and the frontend asks which folder to use.
-    pub fn import_bv(&mut self, raw: String, target_open_playlist: bool) {
-        let playlist = target_open_playlist
-            .then(|| self.app.current_playlist.clone())
-            .flatten();
-        spawn_import_bv(&self.api, self.tx.clone(), raw, playlist);
-    }
-
-    // ----- extra commands (keyboard shortcuts on the TUI) ------------------
 }

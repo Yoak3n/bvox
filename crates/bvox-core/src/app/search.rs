@@ -101,8 +101,7 @@ impl App {
             && self.current_playlist.is_none()
             && self.search_page < self.search_pages
     }
-}
-impl App {
+
     pub(super) fn set_search_paging(&mut self, keyword: String, page: u32, pages: u32, total: u64) {
         let page_no = page.max(1);
         self.search_keyword = keyword;

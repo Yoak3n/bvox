@@ -10,7 +10,7 @@ import dev.yoa.bvox.core.CacheMode
  * restarts; changing them at runtime goes through `Core::setCacheMode` and
  * `Core::setCacheLimitMb`. The cap only matters in auto mode.
  */
-object CachePrefs {
+internal object CachePrefs {
     private const val PREFS = "cache_settings"
     private const val KEY_LIMIT_MB = "limit_mb"
     private const val KEY_MODE = "mode"

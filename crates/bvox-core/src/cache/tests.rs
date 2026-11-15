@@ -2,7 +2,7 @@
 
 use super::audio::{audio_file_name, parse_audio_file_name};
 use super::*;
-use crate::api::{LyricLine, VideoDetail};
+use crate::model::{LyricLine, VideoDetail, VideoPage};
 
 #[test]
 fn audio_file_names_roundtrip() {
@@ -120,7 +120,7 @@ fn cached_tracks_join_audio_with_view_metadata() {
             title: "<em>歌</em>".to_string(),
             author: "UP".to_string(),
             duration: 120,
-            pages: vec![crate::api::VideoPage {
+            pages: vec![VideoPage {
                 cid: 1,
                 duration: 120,
                 part: "P1".to_string(),
@@ -322,7 +322,7 @@ fn view_cache_respects_ttl_with_stale_fallback() {
         title: "标题".to_string(),
         author: "UP".to_string(),
         duration: 60,
-        pages: vec![crate::api::VideoPage {
+        pages: vec![VideoPage {
             cid: 42,
             duration: 60,
             part: "P1".to_string(),

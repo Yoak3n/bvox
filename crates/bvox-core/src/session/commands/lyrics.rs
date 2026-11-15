@@ -1,7 +1,7 @@
 //! Lyrics refresh commands.
 
 use crate::session::Session;
-use crate::session::tasks::lyrics::spawn_lyrics;
+use crate::session::tasks::lyrics::{LyricsRequest, spawn_lyrics};
 
 impl Session {
     /// Re-fetch lyrics for the current track, bypassing (and dropping) the
@@ -21,12 +21,14 @@ impl Session {
         spawn_lyrics(
             &self.api,
             self.tx.clone(),
-            self.app.lyrics_key.clone(),
-            item.aid,
-            item.bvid,
-            self.app.current_cid,
-            seq,
-            true,
+            LyricsRequest {
+                key: self.app.lyrics_key.clone(),
+                aid: item.aid,
+                bvid: item.bvid,
+                cid: self.app.current_cid,
+                seq,
+                refresh: true,
+            },
         );
     }
 

@@ -2,8 +2,9 @@
 
 use super::*;
 
-use super::audio::{AudioTrack, order_audio_candidates};
+use super::audio::order_audio_candidates;
 use super::lyrics::{SubtitleRaw, choose_subtitle, parse_lyrics, subtitle_belongs_to_video};
+use super::playurl::AudioTrack;
 
 fn audio_track(id: i64, bandwidth: i64) -> AudioTrack {
     AudioTrack {

@@ -4,9 +4,10 @@ use anyhow::{Context, Result, bail};
 use serde::Deserialize;
 use serde_json::Value;
 
+use super::clean_title;
 use super::format_secs;
-use super::sign::encode_component;
-use super::text::{clean_title, normalize_url};
+use super::playlist_form::{deal_body, folder_create_body, folder_delete_body, folder_edit_body};
+use super::text::normalize_url;
 use super::transport::check_response;
 use super::video::Owner;
 use super::{ApiClient, FavoriteFolder, VideoItem};
@@ -198,39 +199,6 @@ impl ApiClient {
                 .unwrap_or("未知错误")
         )
     }
-}
-pub(super) fn folder_create_body(title: &str, intro: &str, private: bool, csrf: &str) -> String {
-    format!(
-        "title={}&intro={}&privacy={}&csrf={}",
-        encode_component(title),
-        encode_component(intro),
-        if private { "1" } else { "0" },
-        encode_component(csrf)
-    )
-}
-
-pub(super) fn folder_edit_body(media_id: i64, title: &str, csrf: &str) -> String {
-    format!(
-        "media_id={media_id}&title={}&csrf={}",
-        encode_component(title),
-        encode_component(csrf)
-    )
-}
-
-pub(super) fn folder_delete_body(media_id: i64, csrf: &str) -> String {
-    format!("media_ids={media_id}&csrf={}", encode_component(csrf))
-}
-
-pub(super) fn deal_body(folder_id: i64, aid: i64, add: bool, csrf: &str) -> String {
-    let (add_ids, del_ids) = if add {
-        (folder_id.to_string(), String::new())
-    } else {
-        (String::new(), folder_id.to_string())
-    };
-    format!(
-        "rid={aid}&type=2&add_media_ids={add_ids}&del_media_ids={del_ids}&csrf={}",
-        encode_component(csrf)
-    )
 }
 /// Normalize the folder list returned by Bilibili (titles may contain HTML).
 pub(super) fn playlist_folders(list: Vec<FavoriteFolderRaw>) -> Vec<FavoriteFolder> {

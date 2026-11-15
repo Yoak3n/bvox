@@ -34,7 +34,7 @@ import dev.yoa.bvox.core.CoreHolder
  * playback service: while the app is open the MediaController keeps the
  * service alive, and destroying it removes the window.
  */
-class LyricOverlayController(
+internal class LyricOverlayController(
     private val context: Context,
     scope: CoroutineScope,
 ) {

@@ -5,7 +5,7 @@ use std::time::Duration;
 use super::Cache;
 use super::model::{CachedLyrics, CachedView, LYRICS_VERSION, VIEW_TTL};
 use super::paths::{touch, unix_secs, write_atomic};
-use crate::api::{LyricLine, VideoDetail};
+use crate::model::{LyricLine, VideoDetail};
 
 impl Cache {
     pub fn get_cover(&self, url: &str) -> Option<Vec<u8>> {
@@ -98,8 +98,7 @@ impl Cache {
             self.evict(Some(&path));
         }
     }
-}
-impl Cache {
+
     fn load_view(&self, bvid: &str, max_age: Option<Duration>) -> Option<VideoDetail> {
         if !self.metadata_enabled() {
             return None;

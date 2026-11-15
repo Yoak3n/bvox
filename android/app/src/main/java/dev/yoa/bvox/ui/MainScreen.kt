@@ -9,31 +9,17 @@ import androidx.compose.animation.fadeOut
 import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutVertically
 import androidx.compose.animation.togetherWith
-import androidx.compose.foundation.Image
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.PaddingValues
-import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.GraphicEq
 import androidx.compose.material.icons.rounded.LibraryMusic
-import androidx.compose.material.icons.rounded.Pause
 import androidx.compose.material.icons.rounded.Person
-import androidx.compose.material.icons.rounded.PlayArrow
 import androidx.compose.material.icons.rounded.Search
-import androidx.compose.material.icons.rounded.SkipNext
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
-import androidx.compose.material3.LinearProgressIndicator
-import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -47,22 +33,14 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.vector.ImageVector
-import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalDensity
-import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 
-
 import dev.yoa.bvox.core.FavoriteFolder
-import dev.yoa.bvox.core.Snapshot
-import dev.yoa.bvox.ui.components.ArtworkTile
 import dev.yoa.bvox.ui.components.BvoxBottomBar
 import dev.yoa.bvox.ui.components.BvoxNavItem
-import dev.yoa.bvox.ui.components.GlassCard
 import dev.yoa.bvox.ui.components.GradientBackground
 import dev.yoa.bvox.ui.screens.library.LibraryScreen
 import dev.yoa.bvox.ui.screens.me.MeScreen
@@ -71,14 +49,12 @@ import dev.yoa.bvox.ui.components.MiniPlayer
 import dev.yoa.bvox.ui.login.LoginPanel
 import dev.yoa.bvox.ui.theme.BvoxColors
 import dev.yoa.bvox.ui.theme.BvoxMotion
-import dev.yoa.bvox.ui.theme.BvoxRadius
 import dev.yoa.bvox.core.AppModel
 import dev.yoa.bvox.core.CoreHolder
 import dev.yoa.bvox.ui.screens.discover.DiscoverScreen
 import dev.yoa.bvox.ui.dialogs.PlaylistNameDialog
 import dev.yoa.bvox.ui.dialogs.AddToPlaylistDialog
 import dev.yoa.bvox.ui.dialogs.BvImportDialog
-
 
 private enum class RootTab(val label: String, val icon: ImageVector) {
     Library("歌单", Icons.Rounded.LibraryMusic),
@@ -89,7 +65,7 @@ private enum class RootTab(val label: String, val icon: ImageVector) {
 
 /** App root: tabbed shell, mini player, core-driven dialogs. */
 @Composable
-fun BvoxApp(model: AppModel) {
+internal fun BvoxApp(model: AppModel) {
     val snapshot by model.snapshot.collectAsState()
     val cover by model.cover.collectAsState()
     val state = snapshot

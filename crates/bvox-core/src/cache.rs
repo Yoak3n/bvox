@@ -37,7 +37,8 @@ mod paths;
 #[cfg(test)]
 mod tests;
 
-pub use model::{CacheMode, CacheStats, CachedAudio, CachedTrack, format_bytes};
+pub use crate::format::format_bytes;
+pub use model::{CacheMode, CacheStats, CachedAudio, CachedTrack};
 
 pub const CACHE_DIR_NAME: &str = "bvox";
 pub const DEFAULT_LIMIT_MB: u64 = 1024;

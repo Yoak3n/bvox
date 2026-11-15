@@ -29,8 +29,7 @@ impl ApiClient {
         *self.cookie.lock().await = None;
         let _ = std::fs::remove_file(cookie_path(&self.paths.data_dir));
     }
-}
-impl ApiClient {
+
     pub async fn qr_generate(&self) -> Result<QrLogin> {
         let resp: QrGenerateResponse = self
             .get_json(

@@ -8,7 +8,7 @@ import android.content.SharedPreferences
  * notification. The overlay keys keep the original `lyric_overlay` file so an
  * already-enabled overlay survives the upgrade.
  */
-object LyricDisplayPrefs {
+internal object LyricDisplayPrefs {
     private const val PREFS = "lyric_overlay"
     const val KEY_ENABLED = "enabled"
     private const val KEY_Y = "y"

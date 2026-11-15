@@ -23,7 +23,7 @@ import dev.yoa.bvox.R
  * 16.0 (e.g. ColorOS 16) promotes with `android.colorized=true`; 16.1+ needs
  * `android.requestPromotedOngoing=true` and `colorized=false`.
  */
-class LyricNotificationProvider(context: Context) : MediaNotification.Provider {
+internal class LyricNotificationProvider(context: Context) : MediaNotification.Provider {
 
     private val appContext = context.applicationContext
 
