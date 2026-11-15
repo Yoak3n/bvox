@@ -449,15 +449,18 @@ mpv --idle=yes --no-video --force-window=no \
 
 ```text
 crates/bvox-core/src/
-├── api.rs + api/        # ApiClient：model/quality/sign/transport/login/account/
-│                        # search/video/audio/playlists/lyrics/text/image
+├── api.rs + api/        # ApiClient：model/quality/sign/transport/dns/login/account/
+│                        # search/video/audio/playurl/playlists/playlist_form/lyrics/text/image
 ├── cache.rs + cache/    # Cache：model/audio/media/eviction/paths
 ├── app.rs + app/        # App 状态机：model/login/library/playlist_ops/picker/
 │                        # import/search/playback/queue/shuffle/lyrics/cache
-├── session.rs + session/  # Session：msg/process/lifecycle/parse/
+├── session.rs + session/  # Session：msg/process/lifecycle/input/
 │                          # commands/{search,playback,library,account,cache,import,lyrics}
 │                          # tasks/{search,login,library,tracks,playback,cover,lyrics,cache}
 ├── ffi.rs + ffi/        # UniFFI 导出：types/bridge/commands/snapshot/pump
+├── model.rs             # 跨领域共享模型：VideoDetail/VideoPage/LyricLine
+├── format.rs            # 共享显示格式化：quality_label/format_bytes
+├── title.rs             # clean_title（HTML 标签与实体清洗）
 ├── paths.rs             # CorePaths（数据/缓存目录注入）
 ├── duration.rs          # format_secs / parse_duration
 ├── playlist_store.rs    # 收藏夹离线缓存（磁盘）
@@ -478,7 +481,8 @@ android/app/src/main/java/dev/yoa/bvox/
 ├── prefs/               # CachePrefs
 └── ui/
     ├── MainScreen.kt    # 导航壳 + 根 Tab
-    ├── components/      # Surfaces/Buttons/Artwork/Rows/Feedback/Header/Navigation/MiniPlayer
+    ├── components/      # Surfaces/Buttons/Artwork/RemoteImage/TrackRow/Feedback/
+    │                    # ScreenHeader/Navigation/MiniPlayer
     ├── dialogs/         # Playlist/Player/Cache/Import 弹窗
     ├── login/           # LoginPanel + WebView/QR/Cookie 三通道 + QrCode
     └── screens/         # me/ nowplaying/ library/ discover/ lyrics/ cached/

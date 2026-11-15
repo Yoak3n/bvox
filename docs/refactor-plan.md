@@ -3,6 +3,7 @@
 > 执行基线：`main` @ `59c3743`（2026-11-14）
 > 目标读者：执行本次重构的模型/开发者
 > 性质：**纯结构性重构（move-only）**。不改行为、不改 UI、不改依赖版本、不改 UniFFI 类型与方法名、不改用户可见文案。
+> 执行后调整：实际布局以 README 为准。收尾阶段将 `session/parse.rs` 改名为 `input.rs`，`CacheUsageBar.kt` 改名为 `CacheUsage.kt`，`Rows.kt`/`Header.kt` 改名为 `TrackRow.kt`/`ScreenHeader.kt`，`nowplaying/Artwork.kt` 改名为 `NowPlayingArtwork.kt`，并把 `import_bv` 归回 `commands/import.rs`；`cache` 需要的共享模型/格式化函数下沉到 `model.rs`/`format.rs`/`title.rs`，依赖方向改为 `api -> cache`，`cache` 不再依赖 `api`。
 
 ---
 

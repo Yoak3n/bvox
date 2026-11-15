@@ -6,6 +6,7 @@
 
 - 软限 **300 行**，硬限 **500 行**（含测试、含注释）。
 - 超过软限就按职责拆文件；硬限是红线。
+- 当前 300–500 行的例外清单与理由见 [docs/file-length-exceptions.md](docs/file-length-exceptions.md)。
 - 根模块文件（`api.rs`、`app.rs`、`session.rs`、`cache.rs`、`ffi.rs`）只放该领域的主类型、构造/生命周期入口、模块声明和 re-export，业务逻辑必须下沉到子文件。
 
 ## 一文件一职责
