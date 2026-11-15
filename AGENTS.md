@@ -1,6 +1,7 @@
 # Agent / 维护者约定
 
-改代码前先读。模块地图见 README「代码结构」，架构原理见 README「核心原理」。
+改代码前先读。模块地图见 README「代码结构」，架构与实现原理见 README「实现细节」，
+B 站接口参数与签名见 [docs/bilibili-api.md](docs/bilibili-api.md)。
 
 ## 文件长度
 
