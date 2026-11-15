@@ -40,7 +40,7 @@ internal fun listThumbnailUrl(url: String?): String? = url
  * fetched with a browser UA/Referer because the CDN rejects bare requests.
  */
 @Composable
-fun rememberRemoteImage(url: String?): ImageBitmap? {
+internal fun rememberRemoteImage(url: String?): ImageBitmap? {
     val normalized = url
         ?.trim()
         ?.takeIf { it.isNotEmpty() }

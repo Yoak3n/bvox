@@ -22,7 +22,7 @@
         <!-- Background audio playback. `mediaPlayback` is a required
              foregroundServiceType on API 34+. -->
         <service
-            android:name=".PlaybackService"
+            android:name=".playback.PlaybackService"
             android:foregroundServiceType="mediaPlayback"
             android:exported="true">
             <intent-filter>

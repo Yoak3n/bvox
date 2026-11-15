@@ -12,6 +12,8 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.core.content.ContextCompat
 import dev.yoa.bvox.ui.BvoxApp
 import dev.yoa.bvox.ui.theme.BvoxTheme
+import dev.yoa.bvox.core.CoreHolder
+
 
 class MainActivity : ComponentActivity() {
 

@@ -69,8 +69,8 @@ tasks.register<Exec>("buildRust") {
         "-o", layout.buildDirectory.file("rustJniLibs").get().asFile.absolutePath,
         "build", "--release", "-p", "bvox-core",
     )
-    inputs.dir(repoRoot.resolve("crates/core/src"))
-    inputs.file(repoRoot.resolve("crates/core/Cargo.toml"))
+    inputs.dir(repoRoot.resolve("crates/bvox-core/src"))
+    inputs.file(repoRoot.resolve("crates/bvox-core/Cargo.toml"))
     outputs.dir(layout.buildDirectory.file("rustJniLibs").get().asFile.absolutePath)
 }
 
