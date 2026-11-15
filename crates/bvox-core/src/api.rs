@@ -20,6 +20,8 @@ pub const CONFIG_DIR_NAME: &str = "bvox";
 mod account;
 mod audio;
 mod dns;
+mod favorite_import;
+mod favorite_link;
 mod image;
 #[cfg(test)]
 mod library_tests;
@@ -46,7 +48,8 @@ pub use crate::model::{LyricLine, VideoDetail, VideoPage};
 pub(crate) use crate::title::clean_title;
 pub(crate) use image::cover_thumbnail_url;
 pub use model::{
-    AudioSource, AudioStream, FavoriteFolder, QrLogin, QrPhase, SearchPage, UserInfo, VideoItem,
+    AudioSource, AudioStream, FavoriteContent, FavoriteFolder, QrLogin, QrPhase, SearchPage,
+    UserInfo, VideoItem,
 };
 pub use quality::{AudioQuality, PlayMode};
 

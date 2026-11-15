@@ -1,4 +1,8 @@
 //! Small-file cache: covers, lyrics and video metadata.
+//!
+//! Covers and lyrics are the "small files" half of the cache; the `view`
+//! record is kept in audio-only mode too because cached audio cannot be
+//! listed or played offline without its page/cid mapping.
 
 use std::time::Duration;
 
@@ -9,7 +13,7 @@ use crate::model::{LyricLine, VideoDetail};
 
 impl Cache {
     pub fn get_cover(&self, url: &str) -> Option<Vec<u8>> {
-        if !self.metadata_enabled() {
+        if !self.small_files_enabled() {
             return None;
         }
         let path = self.cover_path(url);
@@ -22,7 +26,7 @@ impl Cache {
     }
 
     pub fn put_cover(&self, url: &str, bytes: &[u8]) {
-        if !self.metadata_enabled() {
+        if !self.small_files_enabled() {
             return;
         }
         let path = self.cover_path(url);
@@ -32,7 +36,7 @@ impl Cache {
     }
 
     pub fn get_lyrics(&self, bvid: &str, cid: i64) -> Option<Vec<LyricLine>> {
-        if !self.metadata_enabled() {
+        if !self.small_files_enabled() {
             return None;
         }
         let path = self.lyrics_path(bvid, cid);
@@ -48,7 +52,7 @@ impl Cache {
     /// Empty lyric lists are intentionally not stored: subtitles often become
     /// available only after login, and a cached empty result would hide them.
     pub fn put_lyrics(&self, bvid: &str, cid: i64, lines: &[LyricLine]) {
-        if !self.metadata_enabled() || lines.is_empty() {
+        if !self.small_files_enabled() || lines.is_empty() {
             return;
         }
         let path = self.lyrics_path(bvid, cid);
@@ -66,7 +70,7 @@ impl Cache {
     /// Drop cached lyrics for a page. Used by the manual "re-fetch lyrics"
     /// action, which must bypass the cache.
     pub fn remove_lyrics(&self, bvid: &str, cid: i64) {
-        if !self.metadata_enabled() {
+        if !self.small_files_enabled() {
             return;
         }
         let _ = std::fs::remove_file(self.lyrics_path(bvid, cid));
@@ -84,7 +88,7 @@ impl Cache {
     }
 
     pub fn put_view(&self, bvid: &str, detail: &VideoDetail) {
-        if !self.metadata_enabled() {
+        if !self.view_enabled() {
             return;
         }
         let path = self.view_path(bvid);
@@ -100,7 +104,7 @@ impl Cache {
     }
 
     fn load_view(&self, bvid: &str, max_age: Option<Duration>) -> Option<VideoDetail> {
-        if !self.metadata_enabled() {
+        if !self.view_enabled() {
             return None;
         }
         let path = self.view_path(bvid);

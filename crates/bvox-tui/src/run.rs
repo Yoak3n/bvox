@@ -119,6 +119,9 @@ async fn tui_loop(
                         session.remove_track_from_playlist(folder_id, bvid)
                     }
                     Action::ImportBv(raw) => session.import_bv(raw, true),
+                    Action::ImportPublicPlaylist(input) => {
+                        session.import_public_playlist(input)
+                    }
                 },
                 Some(TuiEvent::Quit) => break,
                 Some(TuiEvent::Wake) => {}

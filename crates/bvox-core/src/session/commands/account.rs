@@ -73,6 +73,7 @@ impl Session {
         self.app.show_hidden = false;
         self.app.playlist_selected = None;
         self.app.current_playlist = None;
+        self.app.current_playlist_public = false;
         self.app.open_queue();
         self.app.set_status("已退出登录", false);
         self.save_playback();

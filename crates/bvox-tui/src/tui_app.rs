@@ -137,6 +137,14 @@ pub fn handle_key(app: &mut App, tui: &mut TuiState, key: KeyEvent) -> Action {
         }
         KeyCode::Char('g') => return Action::Login(app.open_login()),
         KeyCode::Char('f') => return Action::OpenLibrary,
+        KeyCode::Char('F') => {
+            start_input(
+                app,
+                InputMode::Favorite,
+                "输入公开收藏夹链接或 media_id，Enter 导入",
+            );
+            return Action::None;
+        }
         KeyCode::Char('l') => {
             if app.now_playing.is_none() {
                 app.set_status("还没有播放内容", true);

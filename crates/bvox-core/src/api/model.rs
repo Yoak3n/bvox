@@ -77,6 +77,13 @@ pub struct FavoriteFolder {
     pub count: i64,
 }
 
+/// A favorite folder plus its playable tracks, loaded in one API pass.
+#[derive(Clone, Debug)]
+pub struct FavoriteContent {
+    pub folder: FavoriteFolder,
+    pub items: Vec<VideoItem>,
+}
+
 #[derive(Clone, Debug)]
 pub struct UserInfo {
     pub name: String,

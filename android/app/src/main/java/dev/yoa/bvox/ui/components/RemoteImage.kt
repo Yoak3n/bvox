@@ -7,37 +7,29 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.produceState
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.asImageBitmap
+import dev.yoa.bvox.core.CoreHolder
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
-import java.net.HttpURLConnection
-import java.net.URL
 
 /** Small in-memory cache so tab switches and list scrolling do not re-download images. */
 private val remoteImageCache = LruCache<String, ImageBitmap>(64)
 
 /**
- * Ask the CDN for a list-sized thumbnail instead of the full cover. Covers are
- * 16:9 stills; a 320px wide version stays sharp in the square row artwork even
- * on 3x screens, while keeping the decode cost small.
+ * Longest side of a decoded image. Rows draw 44dp art (~132px on a 3x screen),
+ * so a full 640×360 cover would cost ~900 KB per LRU entry; downsampling keeps
+ * the bitmap near 320×180 instead.
  */
-internal fun listThumbnailUrl(url: String?): String? = url
-    ?.trim()
-    ?.takeIf { it.isNotEmpty() }
-    ?.replaceFirst("http://", "https://")
-    ?.let { normalized ->
-        if (!normalized.contains("hdslb.com") || normalized.contains('@')) {
-            normalized
-        } else {
-            val (base, query) = normalized.split('?', limit = 2)
-                .let { parts -> parts[0] to parts.getOrNull(1) }
-            val thumbnail = "$base@320w_180h.jpg"
-            if (query == null) thumbnail else "$thumbnail?$query"
-        }
-    }
+private const val MAX_DECODED_PX = 360
 
 /**
- * Load an avatar from a Bilibili CDN URL. URLs are normalized to https and
- * fetched with a browser UA/Referer because the CDN rejects bare requests.
+ * Load a cover or avatar from a Bilibili CDN URL. The download runs in the
+ * core's HTTP stack (CDN probing, retry, on-disk cover cache) because the CDN
+ * has nodes that accept DNS but drop connections; a bare `HttpURLConnection`
+ * would fail on those and leave every row on the placeholder tile.
+ *
+ * Covers keep their original URL: the core asks the image service for the same
+ * 640w thumbnail the player and notification use, so one cache file serves
+ * every view and starting playback finds the cover on disk.
  */
 @Composable
 internal fun rememberRemoteImage(url: String?): ImageBitmap? {
@@ -61,23 +53,22 @@ internal fun rememberRemoteImage(url: String?): ImageBitmap? {
     return image
 }
 
-private fun downloadImage(url: String): ImageBitmap? = runCatching {
-    val connection = URL(url).openConnection() as HttpURLConnection
-    try {
-        connection.connectTimeout = 8000
-        connection.readTimeout = 8000
-        connection.instanceFollowRedirects = true
-        connection.setRequestProperty(
-            "User-Agent",
-            "Mozilla/5.0 (Linux; Android 16; 23127PN0CC) " +
-                "AppleWebKit/537.36 (KHTML, like Gecko) " +
-                "Chrome/155.0.0.0 Mobile Safari/537.36",
-        )
-        connection.setRequestProperty("Referer", "https://www.bilibili.com/")
-        connection.inputStream.use { stream ->
-            BitmapFactory.decodeStream(stream)?.asImageBitmap()
-        }
-    } finally {
-        connection.disconnect()
+/** Blocking: `Core::fetch_thumbnail` only returns after the request settles. */
+private fun downloadImage(url: String): ImageBitmap? {
+    if (!CoreHolder.isReady) return null
+    val bytes = CoreHolder.core.fetchThumbnail(url) ?: return null
+    return decodeThumbnail(bytes)
+}
+
+/** Decode a cover at the largest power-of-two downsample that still covers [MAX_DECODED_PX]. */
+private fun decodeThumbnail(bytes: ByteArray): ImageBitmap? {
+    val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
+    BitmapFactory.decodeByteArray(bytes, 0, bytes.size, bounds)
+    if (bounds.outWidth <= 0 || bounds.outHeight <= 0) return null
+    var sample = 1
+    while (maxOf(bounds.outWidth, bounds.outHeight) / sample > MAX_DECODED_PX) {
+        sample *= 2
     }
-}.getOrNull()
+    val options = BitmapFactory.Options().apply { inSampleSize = sample }
+    return BitmapFactory.decodeByteArray(bytes, 0, bytes.size, options)?.asImageBitmap()
+}

@@ -55,6 +55,7 @@ import dev.yoa.bvox.ui.screens.discover.DiscoverScreen
 import dev.yoa.bvox.ui.dialogs.PlaylistNameDialog
 import dev.yoa.bvox.ui.dialogs.AddToPlaylistDialog
 import dev.yoa.bvox.ui.dialogs.BvImportDialog
+import dev.yoa.bvox.ui.dialogs.PublicPlaylistDialog
 
 private enum class RootTab(val label: String, val icon: ImageVector) {
     Library("歌单", Icons.Rounded.LibraryMusic),
@@ -75,6 +76,7 @@ internal fun BvoxApp(model: AppModel) {
 
     var tab by rememberSaveable { mutableStateOf(RootTab.Library) }
     var showBvDialog by remember { mutableStateOf(false) }
+    var showPublicPlaylistDialog by remember { mutableStateOf(false) }
     var showLogin by remember { mutableStateOf(false) }
     var showLogoutConfirm by remember { mutableStateOf(false) }
 
@@ -202,6 +204,8 @@ internal fun BvoxApp(model: AppModel) {
                                 },
                                 onRemove = { folder, item -> removeTrack = folder to item.bvid },
                                 onOpenPlayer = { tab = RootTab.Playing },
+                                onImportPublic = { showPublicPlaylistDialog = true },
+                                onOpenCurrentPlaylist = { CoreHolder.core.openQueue() },
                             )
                             RootTab.Discover -> DiscoverScreen(
                                 state = current,
@@ -253,6 +257,9 @@ internal fun BvoxApp(model: AppModel) {
         }
         if (showBvDialog) {
             BvImportDialog(onDismiss = { showBvDialog = false })
+        }
+        if (showPublicPlaylistDialog) {
+            PublicPlaylistDialog(onDismiss = { showPublicPlaylistDialog = false })
         }
         if (showCreatePlaylist) {
             PlaylistNameDialog(

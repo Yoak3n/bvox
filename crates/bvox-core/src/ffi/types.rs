@@ -72,6 +72,8 @@ pub struct Snapshot {
     /// BVID of the parked import, for the add-to-playlist picker.
     pub pending_import_bvid: Option<String>,
     pub current_playlist: Option<FavoriteFolder>,
+    /// True when `current_playlist` belongs to another user and is read-only.
+    pub current_playlist_public: bool,
     pub show_lyrics: bool,
     pub lyrics: Vec<LyricLine>,
     pub lyrics_status: String,

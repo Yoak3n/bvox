@@ -24,6 +24,10 @@ pub(in crate::tui_app) fn handle_input_key(app: &mut App, key: KeyEvent) -> Acti
                     app.set_status("正在导入 BV…", false);
                     Action::ImportBv(text)
                 }
+                InputMode::Favorite => {
+                    app.set_status("正在导入公开收藏夹…", false);
+                    Action::ImportPublicPlaylist(text)
+                }
                 InputMode::NewPlaylist => {
                     app.set_status("正在创建歌单…", false);
                     Action::CreatePlaylist(text)

@@ -92,13 +92,14 @@ GET /x/v3/fav/folder/created/list-all?up_mid=<DedeUserID>
 → data.list[] { id, title, media_count }
 
 GET /x/v3/fav/resource/list?media_id=<id>&pn=1&ps=20&platform=web
-→ data.medias[] { id, bvid, title, cover, duration, upper.name, type, attr }
+→ data.info { title, media_count }
+   data.medias[] { id, bvid, title, cover, duration, upper.name, type, attr }
    data.has_more
 ```
 
-`type == 2` 才是普通视频，`attr != 0` 是失效条目，两者都会跳过。`data.medias[].id` 就是视频的 `aid`，程序把它存进 `VideoItem.aid`，增删歌单都靠它。程序按 20 条一页循环拉取，最多 100 页。`up_mid` 从 Cookie 的 `DedeUserID` 解析，不需要额外请求。
+`type == 2` 才是普通视频，`attr != 0` 是失效条目，两者都会跳过。`data.medias[].id` 就是视频的 `aid`，程序把它存进 `VideoItem.aid`，增删歌单都靠它。程序按 20 条一页循环拉取，最多 100 页。`up_mid` 从 Cookie 的 `DedeUserID` 解析，不需要额外请求。第一页的 `data.info` 带收藏夹标题和总数，导入公开收藏夹时用它显示名称。
 
-公开收藏夹不需要登录也能读取（`--fav <media_id>` 就是走这条接口列出内容）。
+公开收藏夹不需要登录也能读取（`--fav <media_id|链接>` 就是走这条接口列出内容）。链接支持 `space.bilibili.com/.../favlist?fid=`、`medialist/detail/ml` 和 `b23.tv` 短链；短链先跟随重定向拿到最终 URL，再解析 `fid`。
 
 ```text
 新建：POST /x/v3/fav/folder/add

@@ -48,6 +48,7 @@ internal fun PlaylistDetail(
     onAddToPlaylist: (VideoItem) -> Unit,
     onRemove: (FavoriteFolder, VideoItem) -> Unit,
 ) {
+    val readOnly = state.currentPlaylistPublic
     LazyColumn(
         modifier = Modifier.fillMaxSize(),
         contentPadding = PaddingValues(start = 20.dp, end = 20.dp, top = 6.dp, bottom = 24.dp),
@@ -74,7 +75,11 @@ internal fun PlaylistDetail(
                         overflow = TextOverflow.Ellipsis,
                     )
                     Text(
-                        text = "${state.results.size} 首",
+                        text = if (readOnly) {
+                            "公开收藏夹 · ${state.results.size} 首 · 只读"
+                        } else {
+                            "${state.results.size} 首"
+                        },
                         style = MaterialTheme.typography.bodySmall,
                         color = BvoxColors.TextTertiary,
                     )
@@ -103,8 +108,16 @@ internal fun PlaylistDetail(
                 } else {
                     EmptyState(
                         icon = Icons.Rounded.MusicOff,
-                        title = "这个歌单还没有歌曲",
-                        message = "去「发现」搜索，或用 BV 号导入后加入歌单",
+                        title = if (readOnly) {
+                            "这个公开收藏夹没有可播放的视频"
+                        } else {
+                            "这个歌单还没有歌曲"
+                        },
+                        message = if (readOnly) {
+                            "确认链接指向的是公开收藏夹，且里面有视频"
+                        } else {
+                            "去「发现」搜索，或用 BV 号导入后加入歌单"
+                        },
                         modifier = Modifier
                             .fillMaxWidth()
                             .padding(vertical = 32.dp),
@@ -132,13 +145,15 @@ internal fun PlaylistDetail(
                             size = 32.dp,
                             tint = BvoxColors.TextTertiary,
                         )
-                        CircleIconButton(
-                            icon = Icons.Rounded.Clear,
-                            contentDescription = "从歌单移除",
-                            onClick = { onRemove(folder, item) },
-                            size = 32.dp,
-                            tint = BvoxColors.TextTertiary,
-                        )
+                        if (!readOnly) {
+                            CircleIconButton(
+                                icon = Icons.Rounded.Clear,
+                                contentDescription = "从歌单移除",
+                                onClick = { onRemove(folder, item) },
+                                size = 32.dp,
+                                tint = BvoxColors.TextTertiary,
+                            )
+                        }
                     },
                 )
             }

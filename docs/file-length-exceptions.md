@@ -7,13 +7,13 @@
 | 文件 | 行数 | 职责 | 保留原因 |
 |---|---:|---|---|
 | `crates/bvox-core/src/app/tests.rs` | 500 | `App` 状态机单元测试 | 按计划原样搬家、未改断言；再按主题拆会改变测试模块路径并引入跨文件 helper，留到专门拆测试时处理。已到硬限。 |
-| `crates/bvox-core/src/cache/tests.rs` | 348 | 缓存读写、统计与淘汰的单元测试 | 单一测试职责；与 `app/tests.rs` 同理，拆分收益低于改动面。 |
-| `crates/bvox-core/src/resume.rs` | 397 | 播放进度模型、磁盘持久化、捕获与应用 | 重构前已存在，计划明确保留；内部三个阶段耦合于同一恢复协议。 |
-| `crates/bvox-core/src/ffi/commands.rs` | 307 | 所有 `#[uniffi::export] impl Core` 命令 | 保持导出面集中在一个 `impl Core` 块，避免 UniFFI 跨文件导出带来的绑定/checksum 风险。 |
+| `crates/bvox-core/src/cache/tests.rs` | 367 | 缓存读写、统计与淘汰的单元测试 | 单一测试职责；与 `app/tests.rs` 同理，拆分收益低于改动面。 |
+| `crates/bvox-core/src/resume.rs` | 406 | 播放进度模型、磁盘持久化、捕获与应用 | 重构前已存在，计划明确保留；内部三个阶段耦合于同一恢复协议。 |
+| `crates/bvox-core/src/ffi/commands.rs` | 327 | 所有 `#[uniffi::export] impl Core` 命令 | 保持导出面集中在一个 `impl Core` 块，避免 UniFFI 跨文件导出带来的绑定/checksum 风险。 |
 | `android/app/src/main/java/dev/yoa/bvox/playback/PlaybackService.kt` | 400 | Media3 播放服务、播放器桥接与通知 | 重构前已存在；继续拆需要改服务生命周期和桥接状态，属于独立任务。 |
 | `android/app/src/main/java/dev/yoa/bvox/ui/screens/nowplaying/PlayerContent.kt` | 347 | 播放页主体布局与控件 | 已从 `NowPlayingScreen` 拆出；再拆需要先抽出大量状态参数，收益有限。 |
 | `android/app/src/main/java/dev/yoa/bvox/lyrics/LyricOverlayController.kt` | 376 | 桌面歌词悬浮窗生命周期与视图 | 重构前已存在；悬浮窗权限、窗口参数与视图更新耦合，拆开风险高。 |
-| `android/app/src/main/java/dev/yoa/bvox/ui/MainScreen.kt` | 350 | 导航壳、根 Tab 与页面切换 | 已拆出 `MiniPlayer`、`BvoxBottomBar` 等组件；剩余部分是导航编排。 |
+| `android/app/src/main/java/dev/yoa/bvox/ui/MainScreen.kt` | 357 | 导航壳、根 Tab 与页面切换 | 已拆出 `MiniPlayer`、`BvoxBottomBar` 等组件；剩余部分是导航编排。 |
 
 ## 已在本轮拆出的文件
 

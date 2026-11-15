@@ -4,8 +4,8 @@ use crate::api::FavoriteFolder;
 use crate::session::Session;
 use crate::session::msg::Msg;
 use crate::session::tasks::library::{
-    spawn_create_playlist, spawn_delete_playlist, spawn_open_playlist, spawn_playlists,
-    spawn_rename_playlist, spawn_set_playlist_hidden,
+    spawn_create_playlist, spawn_delete_playlist, spawn_import_public_playlist,
+    spawn_open_playlist, spawn_playlists, spawn_rename_playlist, spawn_set_playlist_hidden,
 };
 use crate::session::tasks::tracks::{spawn_add_track, spawn_remove_track};
 
@@ -42,6 +42,14 @@ impl Session {
             .set_status(&format!("正在打开「{}」…", folder.title), false);
         let seq = self.app.begin_playlist_open();
         spawn_open_playlist(&self.api, self.tx.clone(), seq, folder);
+    }
+
+    /// Load another user's public folder as a read-only queue. Accepts a
+    /// media id, a full folder link, or a b23.tv short link.
+    pub fn import_public_playlist(&mut self, input: String) {
+        self.app.set_status("正在导入公开收藏夹…", false);
+        let seq = self.app.begin_playlist_open();
+        spawn_import_public_playlist(&self.api, self.tx.clone(), seq, input);
     }
 
     pub fn create_playlist(&mut self, title: String) {

@@ -31,14 +31,11 @@ pub async fn run() -> Result<()> {
             headless_play(input).await
         }
         Some("--fav") => {
-            let Some(media_id) = args.get(1) else {
+            let Some(input) = args.get(1) else {
                 print_help();
-                bail!("--fav 需要收藏夹 media_id");
+                bail!("--fav 需要公开收藏夹链接或 media_id");
             };
-            let media_id = media_id
-                .parse::<i64>()
-                .context("--fav 的 media_id 必须是数字")?;
-            headless_favorites(media_id).await
+            headless_favorites(input).await
         }
         Some("--probe-cover") => {
             let options = QueryStdioOptions {
@@ -71,8 +68,9 @@ async fn headless_search(keyword: &str) -> Result<()> {
     Ok(())
 }
 
-async fn headless_favorites(media_id: i64) -> Result<()> {
+async fn headless_favorites(input: &str) -> Result<()> {
     let api = ApiClient::new(CorePaths::desktop_default())?;
+    let media_id = api.resolve_favorite_media_id(input).await?;
     println!("收藏夹: {media_id}");
     let items = api.favorite_items(media_id).await?;
     print_items(&items);
@@ -146,7 +144,7 @@ bvox — B 站音频播放器（终端界面）
   bvox                     启动 TUI
   bvox --search 关键词      命令行搜索
   bvox --play BV...        命令行播放（mpv，无 TUI）
-  bvox --fav MEDIA_ID      命令行列出公开收藏夹内容
+  bvox --fav MEDIA_ID|链接  命令行列出公开收藏夹内容
   bvox --probe-cover       查看终端图片协议（kitty/sixel/halfblocks）
   bvox --help              显示帮助
 
@@ -156,6 +154,7 @@ TUI 按键:
   n / p    下一首/上一首      ← / →  后退/前进 5 秒
   + / -    音量               g      扫码登录
   f        歌单列表/刷新
+  F        导入公开收藏夹（链接或 media_id）
   a        加入歌单           d      移除歌曲/删除歌单
   n / r    新建/重命名歌单（歌单列表内）
   h / H    隐藏歌单 / 显示隐藏项（歌单列表内）
@@ -183,7 +182,7 @@ TUI 按键:
   音频、封面、歌词和视频信息缓存在 ~/.cache/bvox
   （遵循 XDG_CACHE_HOME）。BVOX_CACHE_DIR 自定义目录，
   BVOX_CACHE_MB 限制总大小（默认 1024，0 关闭缓存），
-  BVOX_CACHE_MODE 设默认策略（auto/small_files/off，可被 c 键临时覆盖）。
+  BVOX_CACHE_MODE 设默认策略（auto/audio_only/small_files/off，可被 c 键临时覆盖）。
   占用空间显示在「正在播放」边框上；按 C 清理（保留
   正在播放的缓存文件）。
 

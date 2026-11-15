@@ -169,6 +169,22 @@ impl ApiClient {
         }
     }
 
+    /// Follow a short-link redirect and return the final URL. The response
+    /// body is never read; only the redirect chain matters for folder-id
+    /// parsing.
+    pub(super) async fn expand_short_link(&self, url: &str) -> Result<String> {
+        let mut request = self
+            .http
+            .get(url)
+            .header("User-Agent", UA)
+            .header("Referer", REFERER);
+        if let Some(cookie) = self.combine_cookie(None).await {
+            request = request.header("Cookie", cookie);
+        }
+        let response = request.send().await.context("展开短链失败")?;
+        Ok(response.url().to_string())
+    }
+
     pub(super) async fn combine_cookie(&self, extra: Option<&str>) -> Option<String> {
         let stored = self.cookie.lock().await.clone();
         match (stored, extra) {

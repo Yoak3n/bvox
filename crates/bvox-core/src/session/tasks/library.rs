@@ -120,3 +120,21 @@ pub(in crate::session) fn spawn_delete_playlist(
         let _ = tx.send(Msg::PlaylistDeleted { folder_id, result });
     });
 }
+
+pub(in crate::session) fn spawn_import_public_playlist(
+    api: &Arc<ApiClient>,
+    tx: mpsc::UnboundedSender<Msg>,
+    seq: u64,
+    input: String,
+) {
+    let api = api.clone();
+    tokio::spawn(async move {
+        let result = async {
+            let media_id = api.resolve_favorite_media_id(&input).await?;
+            api.favorite_contents(media_id).await
+        }
+        .await
+        .map_err(|error| format!("{error:#}"));
+        let _ = tx.send(Msg::PublicPlaylistOpened { seq, result });
+    });
+}

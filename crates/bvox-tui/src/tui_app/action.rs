@@ -12,6 +12,7 @@ pub enum Action {
     Search(String),
     LoadMoreSearch,
     ImportBv(String),
+    ImportPublicPlaylist(String),
     Play(PlayRequest),
     Pause,
     Seek(f64),

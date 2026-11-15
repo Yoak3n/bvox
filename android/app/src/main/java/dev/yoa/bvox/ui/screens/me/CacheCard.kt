@@ -1,16 +1,10 @@
 package dev.yoa.bvox.ui.screens.me
 
-import androidx.compose.animation.Crossfade
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
-import androidx.compose.foundation.BorderStroke
-import androidx.compose.foundation.LocalIndication
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.interaction.MutableInteractionSource
-import androidx.compose.foundation.interaction.collectIsPressedAsState
-import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -23,21 +17,17 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Cached
-import androidx.compose.material.icons.rounded.ExpandMore
+import androidx.compose.material.icons.rounded.MusicNote
 import androidx.compose.material.icons.rounded.Tune
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.graphicsLayer
-import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 
@@ -46,27 +36,30 @@ import dev.yoa.bvox.core.CacheUsage
 import dev.yoa.bvox.prefs.CachePrefs
 import dev.yoa.bvox.ui.components.GlassCard
 import dev.yoa.bvox.ui.theme.BvoxColors
-import dev.yoa.bvox.ui.theme.BvoxDimens
 import dev.yoa.bvox.ui.theme.BvoxMotion
 import dev.yoa.bvox.ui.theme.BvoxRadius
 import kotlin.math.roundToInt
 
 /**
- * Cache overview: animated size summary, composition bar and legend, plus the
- * strategy/limit chips and the clear action. All numbers share one set of
- * animated values, so a background download or a cleanup reads as one
- * continuous motion instead of a hard jump.
+ * Cache overview: animated size summary, the entry to the cached-song list,
+ * the composition bar and legend, plus the strategy/limit chips and the clear
+ * action. All numbers share one set of animated values, so a background
+ * download or a cleanup reads as one continuous motion instead of a hard jump.
  */
 @Composable
 internal fun CacheCard(
     usage: CacheUsage?,
     mode: CacheMode,
     limitMb: Int,
+    cachedCount: Int,
+    onOpenCached: () -> Unit,
     onAdjustMode: () -> Unit,
     onAdjustLimit: () -> Unit,
     onClear: () -> Unit,
 ) {
-    val autoMode = mode == CacheMode.AUTO
+    // Audio downloads are capped in auto and audio-only modes; the other modes
+    // have no policy target, so the bar only shows composition.
+    val limitedMode = mode == CacheMode.AUTO || mode == CacheMode.AUDIO_ONLY
     val audioMb = animatedCacheMb(usage?.audioBytes)
     val coverMb = animatedCacheMb(usage?.coverBytes)
     val lyricsMb = animatedCacheMb(usage?.lyricsBytes)
@@ -79,16 +72,14 @@ internal fun CacheCard(
         animationSpec = tween(420, easing = BvoxMotion.EaseOut),
         label = "cache_limit_mb",
     )
-    // Outside auto mode the cap is not a policy target: fill the bar with the
-    // composition of whatever is on disk instead.
     val ratio = when {
-        autoMode && shownLimitMb > 0f -> (usedMb / shownLimitMb).coerceIn(0f, 1f)
+        limitedMode && shownLimitMb > 0f -> (usedMb / shownLimitMb).coerceIn(0f, 1f)
         usedMb > 0f -> 1f
         else -> 0f
     }
     val percentColor by animateColorAsState(
         targetValue = when {
-            !autoMode -> BvoxColors.TextTertiary
+            !limitedMode -> BvoxColors.TextTertiary
             ratio >= 0.98f -> BvoxColors.StateError
             ratio >= 0.9f -> BvoxColors.StateWarning
             else -> BvoxColors.TextTertiary
@@ -179,6 +170,40 @@ internal fun CacheCard(
                 slices = slices,
                 modifier = Modifier.padding(top = 10.dp),
             )
+            // The cached-song list is part of this card: same numbers, same
+            // place, no second card repeating them.
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(BvoxRadius.Sm))
+                    .clickable(onClick = onOpenCached)
+                    .padding(vertical = 10.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Icon(
+                    imageVector = Icons.Rounded.MusicNote,
+                    contentDescription = null,
+                    tint = BvoxColors.BrandPrimary,
+                    modifier = Modifier.size(15.dp),
+                )
+                Text(
+                    text = if (cachedCount > 0) {
+                        "已缓存歌曲 · $cachedCount 首"
+                    } else {
+                        "已缓存歌曲"
+                    },
+                    style = MaterialTheme.typography.labelMedium,
+                    color = BvoxColors.TextSecondary,
+                    maxLines = 1,
+                    modifier = Modifier.padding(start = 6.dp),
+                )
+                Spacer(modifier = Modifier.weight(1f))
+                Text(
+                    text = "查看 ›",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = BvoxColors.BrandPrimary,
+                )
+            }
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -190,7 +215,7 @@ internal fun CacheCard(
                     icon = Icons.Rounded.Cached,
                     onClick = onAdjustMode,
                 )
-                if (autoMode) {
+                if (limitedMode) {
                     Spacer(modifier = Modifier.width(6.dp))
                     CacheChip(
                         label = "上限 ${CachePrefs.label(limitMb)}",
@@ -210,70 +235,6 @@ internal fun CacheCard(
                     )
                 }
             }
-        }
-    }
-}
-
-/** Small pill that opens one of the cache dialogs; presses squash it slightly. */
-@Composable
-internal fun CacheChip(
-    label: String,
-    icon: ImageVector,
-    onClick: () -> Unit,
-) {
-    val interaction = remember { MutableInteractionSource() }
-    val pressed by interaction.collectIsPressedAsState()
-    val scale by animateFloatAsState(
-        targetValue = if (pressed) 0.94f else 1f,
-        animationSpec = tween(120, easing = BvoxMotion.EaseOut),
-        label = "cache_chip_press",
-    )
-    val shape = RoundedCornerShape(BvoxRadius.Pill)
-    Surface(
-        modifier = Modifier
-            .graphicsLayer {
-                scaleX = scale
-                scaleY = scale
-            }
-            .clip(shape)
-            .clickable(
-                interactionSource = interaction,
-                indication = LocalIndication.current,
-                onClick = onClick,
-            ),
-        shape = shape,
-        color = BvoxColors.CardStrong,
-        border = BorderStroke(BvoxDimens.Hairline, BvoxColors.Hairline),
-    ) {
-        Row(
-            modifier = Modifier.padding(horizontal = 12.dp, vertical = 7.dp),
-            horizontalArrangement = Arrangement.spacedBy(6.dp),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            Icon(
-                imageVector = icon,
-                contentDescription = null,
-                tint = BvoxColors.BrandPrimary,
-                modifier = Modifier.size(15.dp),
-            )
-            Crossfade(
-                targetState = label,
-                animationSpec = tween(180),
-                label = "cache_chip_label",
-            ) { value ->
-                Text(
-                    text = value,
-                    style = MaterialTheme.typography.labelMedium,
-                    color = BvoxColors.TextSecondary,
-                    maxLines = 1,
-                )
-            }
-            Icon(
-                imageVector = Icons.Rounded.ExpandMore,
-                contentDescription = null,
-                tint = BvoxColors.TextTertiary,
-                modifier = Modifier.size(15.dp),
-            )
         }
     }
 }

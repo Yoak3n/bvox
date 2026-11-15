@@ -83,7 +83,7 @@ internal fun CacheLimitDialog(
         text = {
             Column {
                 Text(
-                    "上限只对「自动缓存」生效；降低上限会立即清理最久未使用的文件。" +
+                    "上限对「自动缓存」和「仅音频」生效；降低上限会立即清理最久未使用的文件。" +
                         "缓存位于系统缓存目录，存储空间紧张时系统也可能自行清理。",
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,

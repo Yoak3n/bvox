@@ -47,7 +47,7 @@ impl Core {
         let state_tx = remote.state_tx.clone();
         let (session, msg_rx) = runtime.block_on(async {
             let player: Arc<dyn Player> = remote;
-            Session::new(api, player).await
+            Session::new(api.clone(), player).await
         });
         let session = Arc::new(Mutex::new(session));
         runtime.spawn(pump_loop(session.clone(), msg_rx, observer));
@@ -55,6 +55,7 @@ impl Core {
         Ok(Arc::new(Self {
             runtime,
             session,
+            api,
             state_tx,
         }))
     }
@@ -222,6 +223,14 @@ impl Core {
         });
     }
 
+    /// Import another user's public favorite folder as a read-only queue.
+    /// `input` is a media id, a full folder link, or a b23.tv short link.
+    pub fn import_public_playlist(&self, input: String) {
+        self.run(move |session| async move {
+            session.lock().await.import_public_playlist(input);
+        });
+    }
+
     pub fn create_playlist(&self, title: String) {
         self.run(move |session| async move { session.lock().await.create_playlist(title) });
     }
@@ -293,6 +302,17 @@ impl Core {
     /// same `App::on_player_state` logic (progress, EOF auto-advance).
     pub fn report_player_state(&self, state: PlayerState) {
         self.state_tx.send_replace(state);
+    }
+
+    // -- images --------------------------------------------------------------
+
+    /// Download one cover thumbnail and return the encoded image bytes.
+    /// Kotlin calls this from a background dispatcher so list rows reuse the
+    /// core's CDN probing, retry and on-disk cover cache; playback covers
+    /// already depend on that path to survive flaky CDN nodes.
+    pub fn fetch_thumbnail(&self, url: String) -> Option<Vec<u8>> {
+        self.runtime
+            .block_on(async { self.api.image_bytes(&url).await.ok() })
     }
 
     // -- state reads ---------------------------------------------------------

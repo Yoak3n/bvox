@@ -162,13 +162,13 @@ fn lowering_the_limit_evicts_files_immediately() {
 
     // Disabling keeps existing files so the user can clear them manually.
     cache.set_limit_mb(0, None);
-    assert!(!cache.metadata_enabled());
+    assert!(!cache.audio_enabled() && !cache.small_files_enabled() && !cache.view_enabled());
     assert_eq!(cache.stats().total_bytes, 500 * 1024);
     let _ = std::fs::remove_dir_all(root);
 }
 
 #[test]
-fn cache_mode_gates_audio_and_metadata_separately() {
+fn cache_mode_gates_audio_small_files_and_view() {
     let (cache, root) = test_cache();
     let audio = root.join("audio/BV1_1_30280_204800.m4s");
     let cover = root.join("covers/cover.img");
@@ -176,17 +176,45 @@ fn cache_mode_gates_audio_and_metadata_separately() {
         std::fs::create_dir_all(path.parent().unwrap()).unwrap();
         std::fs::write(path, b"bytes").unwrap();
     }
+    let detail = VideoDetail {
+        bvid: "BV1".to_string(),
+        aid: 1,
+        cid: 1,
+        title: "标题".to_string(),
+        author: "UP".to_string(),
+        duration: 60,
+        pages: Vec::new(),
+        pic: None,
+    };
 
-    // Auto reads both categories.
-    assert!(cache.audio_enabled() && cache.metadata_enabled());
+    // Auto reads audio, small files and view records.
+    assert!(cache.audio_enabled() && cache.small_files_enabled() && cache.view_enabled());
     assert!(cache.find_audio("BV1", 1).is_some());
     assert!(cache.get_cover("https://i0.hdslb.com/a.jpg").is_none());
     cache.put_cover("https://i0.hdslb.com/a.jpg", b"image-bytes");
     assert!(cache.get_cover("https://i0.hdslb.com/a.jpg").is_some());
 
-    // Small files: audio is neither read nor written, metadata still is.
+    // Audio-only: audio and the view record survive, covers and lyrics do not.
+    cache.set_mode(CacheMode::AudioOnly);
+    assert!(cache.audio_enabled() && !cache.small_files_enabled() && cache.view_enabled());
+    assert!(cache.find_audio("BV1", 1).is_some());
+    assert!(cache.get_cover("https://i0.hdslb.com/a.jpg").is_none());
+    cache.put_view("BV1", &detail);
+    assert!(cache.get_view("BV1").is_some());
+    cache.put_lyrics(
+        "BV1",
+        1,
+        &[LyricLine {
+            from: 0.0,
+            to: 1.0,
+            text: "ok".to_string(),
+        }],
+    );
+    assert!(cache.get_lyrics("BV1", 1).is_none());
+
+    // Small files: audio is neither read nor written, the rest still is.
     cache.set_mode(CacheMode::SmallFiles);
-    assert!(!cache.audio_enabled() && cache.metadata_enabled());
+    assert!(!cache.audio_enabled() && cache.small_files_enabled() && cache.view_enabled());
     assert!(cache.find_audio("BV1", 1).is_none());
     assert!(cache.cached_bvids().is_empty());
     assert!(!cache.begin_download("BV1:1"));
@@ -201,32 +229,23 @@ fn cache_mode_gates_audio_and_metadata_separately() {
         }],
     );
     assert!(cache.get_lyrics("BV1", 1).is_some());
+    assert!(cache.get_view("BV1").is_some());
 
     // Off: nothing is read or written, existing files stay on disk.
     cache.set_mode(CacheMode::Off);
-    assert!(!cache.audio_enabled() && !cache.metadata_enabled());
+    assert!(!cache.audio_enabled() && !cache.small_files_enabled() && !cache.view_enabled());
     assert!(cache.get_cover("https://i0.hdslb.com/a.jpg").is_none());
     assert!(cache.get_lyrics("BV1", 1).is_none());
-    cache.put_view(
-        "BV1",
-        &VideoDetail {
-            bvid: "BV1".to_string(),
-            aid: 1,
-            cid: 1,
-            title: "标题".to_string(),
-            author: "UP".to_string(),
-            duration: 60,
-            pages: Vec::new(),
-            pic: None,
-        },
-    );
+    cache.put_view("BV1", &detail);
     assert!(cache.get_view("BV1").is_none());
     assert!(audio.exists() && cover.exists());
 
     // Cycling is what the frontends use for their one-key switch.
-    assert_eq!(CacheMode::Auto.next(), CacheMode::SmallFiles);
+    assert_eq!(CacheMode::Auto.next(), CacheMode::AudioOnly);
+    assert_eq!(CacheMode::AudioOnly.next(), CacheMode::SmallFiles);
     assert_eq!(CacheMode::SmallFiles.next(), CacheMode::Off);
     assert_eq!(CacheMode::Off.next(), CacheMode::Auto);
+    assert_eq!(CacheMode::parse("audio_only"), Some(CacheMode::AudioOnly));
     let _ = std::fs::remove_dir_all(root);
 }
 

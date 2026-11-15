@@ -43,6 +43,7 @@ pub enum InputMode {
     None,
     Search,
     Bv,
+    Favorite,
     NewPlaylist,
     RenamePlaylist,
 }

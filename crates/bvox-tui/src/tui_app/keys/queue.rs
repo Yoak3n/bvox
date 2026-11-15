@@ -60,6 +60,10 @@ pub(in crate::tui_app) fn handle_queue_key(
             Action::BeginAddTrack(item.bvid.clone())
         }
         KeyCode::Char('d') => {
+            if app.current_playlist_public {
+                app.set_status("公开收藏夹只读，不能移除歌曲", true);
+                return Action::None;
+            }
             let Some(folder) = app.current_playlist.clone() else {
                 app.set_status("当前列表不是歌单，无法移除", true);
                 return Action::None;

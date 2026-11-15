@@ -60,41 +60,6 @@ internal fun LyricDisplayEntry(onClick: () -> Unit) {
     }
 }
 
-/** Entry card for tracks that are already cached on disk. */
-@Composable
-internal fun CachedTracksEntry(count: Int, onClick: () -> Unit) {
-    GlassCard(onClick = onClick) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            EntryIcon(Icons.Rounded.MusicNote)
-            Column(
-                modifier = Modifier
-                    .weight(1f)
-                    .padding(horizontal = 14.dp),
-            ) {
-                Text(
-                    text = "已缓存歌曲",
-                    style = MaterialTheme.typography.titleSmall,
-                    color = BvoxColors.TextPrimary,
-                )
-                Text(
-                    text = if (count == 0) {
-                        "断网也能播放，播放过的歌会自动缓存"
-                    } else {
-                        "$count 首 · 断网也能播放"
-                    },
-                    style = MaterialTheme.typography.bodySmall,
-                    color = BvoxColors.TextTertiary,
-                )
-            }
-            Text(
-                text = "查看 ›",
-                style = MaterialTheme.typography.bodySmall,
-                color = BvoxColors.BrandPrimary,
-            )
-        }
-    }
-}
-
 /** About card; reads the installed versionName so it cannot drift from Gradle. */
 @Composable
 internal fun AboutCard() {

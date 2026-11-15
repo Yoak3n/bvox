@@ -13,6 +13,7 @@ use std::sync::Arc;
 
 use tokio::sync::{Mutex, watch};
 
+use crate::api::ApiClient;
 use crate::player::PlayerState;
 use crate::session::Session;
 
@@ -31,6 +32,9 @@ pub use types::{CacheProgress, CacheUsage, CoreConfig, CoreError, CoreEvent, Sna
 pub struct Core {
     runtime: tokio::runtime::Runtime,
     session: Arc<Mutex<Session>>,
+    /// Shared with `session`; kept here for image downloads that must not
+    /// hold the session lock while they wait on the network.
+    api: Arc<ApiClient>,
     state_tx: watch::Sender<PlayerState>,
 }
 

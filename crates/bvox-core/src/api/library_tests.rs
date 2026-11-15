@@ -133,6 +133,29 @@ fn favorite_media_carries_aid_and_skips_invalid_entries() {
 }
 
 #[test]
+fn favorite_resource_list_carries_folder_info() {
+    let body = r#"{
+        "code": 0,
+        "data": {
+            "info": {"title": "公开收藏夹", "media_count": 12},
+            "medias": [],
+            "has_more": false
+        }
+    }"#;
+    let resp: FavoriteItemsResponse = serde_json::from_str(body).unwrap();
+    let info = resp.data.expect("data").info.expect("info");
+    assert_eq!(info.title.as_deref(), Some("公开收藏夹"));
+    assert_eq!(info.media_count, Some(12));
+}
+
+#[test]
+fn favorite_resource_list_without_info_still_parses() {
+    let body = r#"{"code": 0, "data": {"medias": [], "has_more": false}}"#;
+    let resp: FavoriteItemsResponse = serde_json::from_str(body).unwrap();
+    assert!(resp.data.expect("data").info.is_none());
+}
+
+#[test]
 fn favorite_write_bodies_are_form_encoded() {
     assert_eq!(
         folder_create_body("我的 歌单&more", "简介", false, "csrf token"),

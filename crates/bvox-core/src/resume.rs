@@ -31,6 +31,10 @@ pub struct SavedPlayback {
     version: u32,
     queue_title: String,
     playlist: Option<FavoriteFolder>,
+    /// True when the saved playlist belongs to another user (read-only).
+    /// Old files without the field restore as owned playlists.
+    #[serde(default)]
+    playlist_public: bool,
     items: Vec<VideoItem>,
     current: Option<usize>,
     page: usize,
@@ -58,6 +62,7 @@ impl SavedPlayback {
             version: VERSION,
             queue_title: app.results_title.clone(),
             playlist: app.current_playlist.clone(),
+            playlist_public: app.current_playlist_public,
             items: app.results.clone(),
             current: app.current,
             page: app.page,
@@ -87,6 +92,9 @@ impl SavedPlayback {
         app.results = self.items.clone();
         app.results_title = if self.queue_title.trim().is_empty() {
             match &self.playlist {
+                Some(folder) if self.playlist_public => {
+                    format!("公开收藏夹 · {}", folder.title)
+                }
                 Some(folder) => format!("歌单 · {}", folder.title),
                 None => "播放队列".to_string(),
             }
@@ -94,6 +102,7 @@ impl SavedPlayback {
             self.queue_title.clone()
         };
         app.current_playlist = self.playlist.clone();
+        app.current_playlist_public = self.playlist_public && self.playlist.is_some();
         app.current = self.current.filter(|index| *index < app.results.len());
         app.selected = app
             .current

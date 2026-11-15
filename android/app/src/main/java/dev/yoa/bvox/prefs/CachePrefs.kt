@@ -21,12 +21,18 @@ internal object CachePrefs {
     val LIMIT_OPTIONS_MB = listOf(512, 1024, 2048, 4096, 8192)
 
     /** Strategies in the same order the TUI's one-key switch cycles. */
-    val MODE_OPTIONS = listOf(CacheMode.AUTO, CacheMode.SMALL_FILES, CacheMode.OFF)
+    val MODE_OPTIONS = listOf(
+        CacheMode.AUTO,
+        CacheMode.AUDIO_ONLY,
+        CacheMode.SMALL_FILES,
+        CacheMode.OFF,
+    )
 
     fun mode(context: Context): CacheMode {
         val prefs = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
         return when (prefs.getString(KEY_MODE, null)) {
             "auto" -> CacheMode.AUTO
+            "audio_only" -> CacheMode.AUDIO_ONLY
             "small_files" -> CacheMode.SMALL_FILES
             "off" -> CacheMode.OFF
             // Migration: the old cap picker stored 0 for "缓存关闭".
@@ -42,6 +48,7 @@ internal object CachePrefs {
     fun setMode(context: Context, mode: CacheMode) {
         val value = when (mode) {
             CacheMode.AUTO -> "auto"
+            CacheMode.AUDIO_ONLY -> "audio_only"
             CacheMode.SMALL_FILES -> "small_files"
             CacheMode.OFF -> "off"
         }
@@ -69,6 +76,7 @@ internal object CachePrefs {
     /** Short strategy label for chips and summaries. */
     fun modeLabel(mode: CacheMode): String = when (mode) {
         CacheMode.AUTO -> "自动缓存"
+        CacheMode.AUDIO_ONLY -> "仅音频"
         CacheMode.SMALL_FILES -> "仅小文件"
         CacheMode.OFF -> "关闭"
     }
@@ -76,6 +84,7 @@ internal object CachePrefs {
     /** One-line explanation shown in the strategy dialog. */
     fun modeDescription(mode: CacheMode): String = when (mode) {
         CacheMode.AUTO -> "播放时后台保存音频，下次播放直接用本地文件"
+        CacheMode.AUDIO_ONLY -> "只保存音频和播放所需的曲目信息，不缓存封面和歌词"
         CacheMode.SMALL_FILES -> "音频始终在线播放，只缓存封面、歌词和视频信息"
         CacheMode.OFF -> "不读也不写缓存，已有文件保留到手动清理"
     }

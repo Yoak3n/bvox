@@ -52,6 +52,7 @@ pub(super) fn build_snapshot(app: &App) -> Snapshot {
             .as_ref()
             .map(|pending| pending.bvid.clone()),
         current_playlist: app.current_playlist.clone(),
+        current_playlist_public: app.current_playlist_public,
         show_lyrics: app.show_lyrics,
         lyrics: app.lyrics.clone(),
         lyrics_status: app.lyrics_status.clone(),

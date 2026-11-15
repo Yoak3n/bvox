@@ -21,6 +21,8 @@ mod model;
 mod picker;
 mod playback;
 mod playlist_ops;
+#[cfg(test)]
+mod public_playlist_tests;
 mod queue;
 mod search;
 mod shuffle;
@@ -103,6 +105,9 @@ pub struct App {
     pub playlist_selected: Option<usize>,
     /// The folder the current queue was opened from, if any.
     pub current_playlist: Option<FavoriteFolder>,
+    /// True when the current folder belongs to another user. Public folders
+    /// are read-only: tracks cannot be removed from them.
+    pub current_playlist_public: bool,
     /// Add-to-playlist modal (TUI).
     pub picker: Option<PlaylistPicker>,
     /// Folder being renamed through the text input.
@@ -186,6 +191,7 @@ impl App {
             playlist_open_seq: 0,
             playlist_selected: None,
             current_playlist: None,
+            current_playlist_public: false,
             picker: None,
             rename_target: None,
             pending_import: None,

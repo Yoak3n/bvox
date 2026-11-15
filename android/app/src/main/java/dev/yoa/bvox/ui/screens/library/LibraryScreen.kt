@@ -24,6 +24,8 @@ internal fun LibraryScreen(
     onAddToPlaylist: (VideoItem) -> Unit,
     onRemove: (FavoriteFolder, VideoItem) -> Unit,
     onOpenPlayer: () -> Unit,
+    onImportPublic: () -> Unit,
+    onOpenCurrentPlaylist: () -> Unit,
 ) {
     val folder = state.currentPlaylist
     if (!state.inLibrary && folder != null) {
@@ -48,6 +50,8 @@ internal fun LibraryScreen(
             onToggleHidden = onToggleHidden,
             onToggleShowHidden = onToggleShowHidden,
             onOpenPlayer = onOpenPlayer,
+            onImportPublic = onImportPublic,
+            onOpenCurrentPlaylist = onOpenCurrentPlaylist,
         )
     }
 }

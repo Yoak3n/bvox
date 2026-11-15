@@ -92,17 +92,12 @@ internal fun MeScreen(
             }
 
             item {
-                CachedTracksEntry(
-                    count = state.cachedTracks.size,
-                    onClick = { showCachedTracks = true },
-                )
-            }
-
-            item {
                 CacheCard(
                     usage = state.cacheUsage,
                     mode = cacheMode,
                     limitMb = cacheLimitMb,
+                    cachedCount = state.cachedTracks.size,
+                    onOpenCached = { showCachedTracks = true },
                     onAdjustMode = { showCacheModeDialog = true },
                     onAdjustLimit = { showCacheLimitDialog = true },
                     onClear = { showClearCacheConfirm = true },

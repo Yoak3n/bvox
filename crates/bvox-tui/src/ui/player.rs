@@ -30,6 +30,10 @@ pub(super) fn draw_player(
                 " 正在播放 · 缓存已关闭 · 占用 {} ",
                 format_bytes(stats.total_bytes)
             ),
+            CacheMode::AudioOnly => format!(
+                " 正在播放 · 仅音频 · 占用 {} ",
+                format_bytes(stats.total_bytes)
+            ),
             CacheMode::SmallFiles => format!(
                 " 正在播放 · 仅小文件 · 占用 {} ",
                 format_bytes(stats.total_bytes)

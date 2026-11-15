@@ -10,6 +10,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.ArrowBack
 import androidx.compose.material.icons.rounded.MusicNote
@@ -25,11 +26,12 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import dev.yoa.bvox.core.CachedTrack
 import dev.yoa.bvox.core.Snapshot
-import dev.yoa.bvox.ui.components.ArtworkTile
 import dev.yoa.bvox.ui.components.EmptyState
 import dev.yoa.bvox.ui.components.GlassCard
 import dev.yoa.bvox.ui.components.ScreenHeader
+import dev.yoa.bvox.ui.components.TrackArtwork
 import dev.yoa.bvox.ui.theme.BvoxColors
+import dev.yoa.bvox.ui.theme.BvoxRadius
 
 /**
  * Offline-only list of finished audio files. Deliberately independent of the
@@ -88,7 +90,11 @@ internal fun CachedTracksScreen(
 private fun CachedTrackRow(track: CachedTrack, onPlay: () -> Unit) {
     GlassCard(onClick = onPlay, contentPadding = PaddingValues(12.dp)) {
         Row(verticalAlignment = Alignment.CenterVertically) {
-            ArtworkTile(size = 48.dp)
+            TrackArtwork(
+                url = track.pic,
+                size = 48.dp,
+                shape = RoundedCornerShape(BvoxRadius.Md),
+            )
             Column(
                 modifier = Modifier
                     .weight(1f)

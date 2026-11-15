@@ -16,7 +16,9 @@
 //! [`Cache::set_limit_mb`]); eviction drops the least recently used files.
 //!
 //! [`CacheMode`] picks what is stored at all: auto caches audio plus covers,
-//! lyrics and metadata; small-files skips audio downloads and keeps the small
+//! lyrics and metadata; audio-only keeps audio and the tiny `view` record
+//! (cached audio is unplayable offline without its page/cid mapping) but skips
+//! covers and lyrics; small-files skips audio downloads and keeps the small
 //! files; off bypasses the cache entirely. A size limit of 0 still disables
 //! the cache as a whole for callers of the legacy limit knob.
 //!
@@ -88,13 +90,20 @@ impl Cache {
         self.mode.store(mode.as_u8(), Ordering::Relaxed);
     }
 
-    /// Audio is cached (and read back) only in auto mode.
+    /// Audio is cached (and read back) in auto and audio-only modes.
     pub fn audio_enabled(&self) -> bool {
-        self.mode() == CacheMode::Auto && self.limit_bytes() > 0
+        matches!(self.mode(), CacheMode::Auto | CacheMode::AudioOnly) && self.limit_bytes() > 0
     }
 
-    /// Covers, lyrics and metadata are cached in every mode except off.
-    pub fn metadata_enabled(&self) -> bool {
+    /// Covers and lyrics live with the small-file half of the cache: auto and
+    /// small-files modes. Audio-only skips them.
+    pub fn small_files_enabled(&self) -> bool {
+        matches!(self.mode(), CacheMode::Auto | CacheMode::SmallFiles) && self.limit_bytes() > 0
+    }
+
+    /// The `view` record is kept in every mode except off: listing and
+    /// playing cached audio offline both need its page/cid mapping.
+    pub fn view_enabled(&self) -> bool {
         self.mode() != CacheMode::Off && self.limit_bytes() > 0
     }
 

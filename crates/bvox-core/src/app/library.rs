@@ -2,7 +2,7 @@
 
 use super::App;
 use super::MainView;
-use crate::api::{FavoriteFolder, VideoItem};
+use crate::api::{FavoriteContent, FavoriteFolder, VideoItem};
 
 impl App {
     /// Install the last cached folder list (offline start / refresh fallback).
@@ -193,6 +193,28 @@ impl App {
                 self.set_status(&format!("已打开「{title}」{count} 首{suffix}"), false);
             }
             Err(error) => self.set_status(&format!("打开歌单失败: {error}"), true),
+        }
+    }
+
+    /// Install another user's public folder as a read-only queue.
+    pub fn on_public_playlist_opened(&mut self, seq: u64, result: Result<FavoriteContent, String>) {
+        if seq != self.playlist_open_seq {
+            return;
+        }
+        match result {
+            Ok(content) => {
+                let count = content.items.len();
+                let title = content.folder.title.clone();
+                self.replace_results(
+                    content.items,
+                    &format!("公开收藏夹 · {title}"),
+                    Some(content.folder),
+                );
+                self.current_playlist_public = true;
+                self.view = MainView::Queue;
+                self.set_status(&format!("已导入公开收藏夹「{title}」{count} 首"), false);
+            }
+            Err(error) => self.set_status(&format!("导入公开收藏夹失败: {error}"), true),
         }
     }
 }

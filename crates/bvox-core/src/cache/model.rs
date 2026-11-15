@@ -22,16 +22,19 @@ pub enum CacheMode {
     /// 自动缓存：音频、封面、歌词和视频信息都落盘。
     #[default]
     Auto = 0,
+    /// 仅音频：只缓存音频和播放所需的曲目信息，不保存封面和歌词。
+    AudioOnly = 1,
     /// 仅小文件：音频始终在线播放，只缓存封面、歌词和视频信息。
-    SmallFiles = 1,
+    SmallFiles = 2,
     /// 关闭：不读也不写缓存，已有文件保留到手动清理。
-    Off = 2,
+    Off = 3,
 }
 
 impl CacheMode {
     pub fn label(self) -> &'static str {
         match self {
             Self::Auto => "自动缓存",
+            Self::AudioOnly => "仅音频",
             Self::SmallFiles => "仅小文件",
             Self::Off => "关闭",
         }
@@ -40,6 +43,7 @@ impl CacheMode {
     pub fn description(self) -> &'static str {
         match self {
             Self::Auto => "音频、封面、歌词和视频信息都缓存，下次播放直接用本地文件",
+            Self::AudioOnly => "只缓存音频和播放所需的曲目信息，不保存封面和歌词",
             Self::SmallFiles => "音频始终在线播放，只缓存封面、歌词和视频信息",
             Self::Off => "不读也不写缓存，已有文件保留到手动清理",
         }
@@ -47,7 +51,8 @@ impl CacheMode {
 
     pub fn next(self) -> Self {
         match self {
-            Self::Auto => Self::SmallFiles,
+            Self::Auto => Self::AudioOnly,
+            Self::AudioOnly => Self::SmallFiles,
             Self::SmallFiles => Self::Off,
             Self::Off => Self::Auto,
         }
@@ -56,6 +61,7 @@ impl CacheMode {
     pub fn parse(value: &str) -> Option<Self> {
         match value.to_ascii_lowercase().as_str() {
             "auto" => Some(Self::Auto),
+            "audio_only" | "audio-only" | "audio" => Some(Self::AudioOnly),
             "small_files" | "small-files" | "small" => Some(Self::SmallFiles),
             "off" => Some(Self::Off),
             _ => None,
@@ -68,8 +74,9 @@ impl CacheMode {
 
     pub(super) fn from_u8(value: u8) -> Self {
         match value {
-            1 => Self::SmallFiles,
-            2 => Self::Off,
+            1 => Self::AudioOnly,
+            2 => Self::SmallFiles,
+            3 => Self::Off,
             _ => Self::Auto,
         }
     }

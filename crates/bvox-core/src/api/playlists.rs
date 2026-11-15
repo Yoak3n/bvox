@@ -53,48 +53,7 @@ impl ApiClient {
 
     /// Import every playable video from a favorite folder (up to 100 pages).
     pub async fn favorite_items(&self, media_id: i64) -> Result<Vec<VideoItem>> {
-        let mut items = Vec::new();
-
-        for page in 1..=100 {
-            let url = format!(
-                "https://api.bilibili.com/x/v3/fav/resource/list?media_id={media_id}&pn={page}&ps=20&platform=web"
-            );
-            let resp: FavoriteItemsResponse = self
-                .get_json(&url, None)
-                .await
-                .context("获取收藏夹内容失败")?;
-
-            if resp.code != 0 {
-                bail!(
-                    "获取收藏夹内容失败 {}: {}",
-                    resp.code,
-                    resp.message.unwrap_or_else(|| "未知错误".to_string())
-                );
-            }
-
-            let Some(data) = resp.data else {
-                break;
-            };
-            let medias = data.medias.unwrap_or_default();
-            if medias.is_empty() {
-                break;
-            }
-
-            for media in medias {
-                if let Some(item) = media.into_item() {
-                    items.push(item);
-                }
-            }
-
-            if !data.has_more {
-                break;
-            }
-        }
-
-        if let Some(mid) = self.mid().await {
-            let _ = crate::playlist_store::save_items(&self.paths.data_dir, mid, media_id, &items);
-        }
-        Ok(items)
+        Ok(self.favorite_contents(media_id).await?.items)
     }
 
     async fn create_favorite_folder(&self, title: &str, intro: &str, private: bool) -> Result<i64> {
@@ -242,9 +201,17 @@ pub(super) struct FavoriteItemsResponse {
 
 #[derive(Deserialize)]
 pub(super) struct FavoriteItemsData {
+    /// Folder metadata, present on the first page of a resource list.
+    pub(super) info: Option<FavoriteInfoRaw>,
     pub(super) medias: Option<Vec<FavoriteMediaRaw>>,
     #[serde(default)]
     pub(super) has_more: bool,
+}
+
+#[derive(Deserialize)]
+pub(super) struct FavoriteInfoRaw {
+    pub(super) title: Option<String>,
+    pub(super) media_count: Option<i64>,
 }
 
 #[derive(Deserialize)]

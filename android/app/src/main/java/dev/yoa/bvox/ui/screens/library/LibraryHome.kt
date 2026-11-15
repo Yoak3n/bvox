@@ -2,6 +2,7 @@ package dev.yoa.bvox.ui.screens.library
 
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -15,6 +16,7 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Add
 import androidx.compose.material.icons.automirrored.rounded.QueueMusic
+import androidx.compose.material.icons.rounded.Link
 import androidx.compose.material.icons.rounded.Refresh
 import androidx.compose.material.icons.rounded.Visibility
 import androidx.compose.material.icons.rounded.VisibilityOff
@@ -25,12 +27,15 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.ImageBitmap
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 
 import dev.yoa.bvox.core.FavoriteFolder
 import dev.yoa.bvox.core.Snapshot
+import dev.yoa.bvox.ui.components.ArtworkTile
 import dev.yoa.bvox.ui.components.CircleIconButton
 import dev.yoa.bvox.ui.components.EmptyState
+import dev.yoa.bvox.ui.components.GlassCard
 import dev.yoa.bvox.ui.components.PillButton
 import dev.yoa.bvox.ui.components.ScreenHeader
 import dev.yoa.bvox.ui.components.StatusLine
@@ -49,8 +54,11 @@ internal fun LibraryHome(
     onToggleHidden: (FavoriteFolder, Boolean) -> Unit,
     onToggleShowHidden: () -> Unit,
     onOpenPlayer: () -> Unit,
+    onImportPublic: () -> Unit,
+    onOpenCurrentPlaylist: () -> Unit,
 ) {
     val hiddenIds = state.hiddenPlaylistIds.toSet()
+    val publicPlaylist = state.currentPlaylist.takeIf { state.currentPlaylistPublic }
     val playlists = if (state.showHidden) {
         state.playlists
     } else {
@@ -83,6 +91,11 @@ internal fun LibraryHome(
                                 onClick = onToggleShowHidden,
                             )
                         }
+                        CircleIconButton(
+                            icon = Icons.Rounded.Link,
+                            contentDescription = "导入公开收藏夹",
+                            onClick = onImportPublic,
+                        )
                         CircleIconButton(Icons.Rounded.Refresh, "刷新歌单列表", onRefresh)
                         CircleIconButton(Icons.Rounded.Add, "新建歌单", onCreate)
                     }
@@ -98,6 +111,37 @@ internal fun LibraryHome(
 
         item {
             StatusLine(status = state.status, loading = state.loading, error = state.error)
+        }
+
+        if (publicPlaylist != null) {
+            item {
+                GlassCard(
+                    onClick = onOpenCurrentPlaylist,
+                    contentPadding = PaddingValues(12.dp),
+                ) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        ArtworkTile(size = 52.dp, icon = Icons.Rounded.Link)
+                        Column(
+                            modifier = Modifier
+                                .weight(1f)
+                                .padding(horizontal = 12.dp),
+                        ) {
+                            Text(
+                                text = publicPlaylist.title,
+                                style = MaterialTheme.typography.bodyLarge,
+                                color = BvoxColors.TextPrimary,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis,
+                            )
+                            Text(
+                                text = "公开收藏夹 · ${state.results.size} 首 · 只读",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = BvoxColors.TextTertiary,
+                            )
+                        }
+                    }
+                }
+            }
         }
 
         if (playlists.isEmpty()) {

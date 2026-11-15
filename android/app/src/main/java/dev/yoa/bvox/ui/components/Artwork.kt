@@ -9,7 +9,6 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.MusicNote
 import androidx.compose.material3.Icon
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -52,8 +51,7 @@ internal fun TrackArtwork(
     modifier: Modifier = Modifier,
     shape: Shape = RoundedCornerShape(BvoxRadius.Sm),
 ) {
-    val thumbnail = remember(url) { listThumbnailUrl(url) }
-    val image = rememberRemoteImage(thumbnail)
+    val image = rememberRemoteImage(url)
     if (image == null) {
         ArtworkTile(size = size, modifier = modifier, shape = shape)
     } else {

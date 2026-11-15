@@ -2,7 +2,7 @@
 
 use anyhow::Result;
 
-use crate::api::{FavoriteFolder, SearchPage, VideoItem};
+use crate::api::{FavoriteContent, FavoriteFolder, SearchPage, VideoItem};
 use crate::app::{BvImport, PendingImport, PlayingInfo};
 
 /// Internal message vocabulary. `Key`/`Quit`/`Wake` stayed frontend-side;
@@ -48,6 +48,11 @@ pub enum Msg {
         result: Result<Vec<VideoItem>, String>,
         /// True when the contents came from the offline cache.
         offline: bool,
+    },
+    /// Another user's public folder, loaded as a read-only queue.
+    PublicPlaylistOpened {
+        seq: u64,
+        result: Result<FavoriteContent, String>,
     },
     PlaylistHidden {
         folder_id: i64,

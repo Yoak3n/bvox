@@ -160,6 +160,7 @@ impl App {
         self.results = items;
         self.results_title = title.to_string();
         self.current_playlist = playlist;
+        self.current_playlist_public = false;
         self.play_failures = 0;
         self.current = None;
         self.page = 0;

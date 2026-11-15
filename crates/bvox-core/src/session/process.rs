@@ -17,6 +17,7 @@ impl Session {
             Msg::SearchDone { .. }
                 | Msg::SearchMoreDone { .. }
                 | Msg::PlaylistOpened { .. }
+                | Msg::PublicPlaylistOpened { .. }
                 | Msg::BvImported(_)
                 | Msg::CacheDone { .. }
                 | Msg::Playing(_)
@@ -31,6 +32,7 @@ impl Session {
                 | Msg::SearchDone { .. }
                 | Msg::SearchMoreDone { .. }
                 | Msg::PlaylistOpened { .. }
+                | Msg::PublicPlaylistOpened { .. }
                 | Msg::BvImported(_)
                 | Msg::TrackRemoved { .. }
                 | Msg::PlaylistDeleted { .. }
@@ -123,6 +125,9 @@ impl Session {
                 result,
                 offline,
             } => self.app.on_playlist_opened(seq, folder, result, offline),
+            Msg::PublicPlaylistOpened { seq, result } => {
+                self.app.on_public_playlist_opened(seq, result)
+            }
             Msg::PlaylistCreated { result, pending } => {
                 let created = result
                     .as_ref()

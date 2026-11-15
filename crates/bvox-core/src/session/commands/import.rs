@@ -9,9 +9,14 @@ impl Session {
     /// playlist is the destination (TUI keyboard flow); otherwise the track
     /// only parks in the queue and the frontend asks which folder to use.
     pub fn import_bv(&mut self, raw: String, target_open_playlist: bool) {
-        let playlist = target_open_playlist
-            .then(|| self.app.current_playlist.clone())
-            .flatten();
+        // A public folder belongs to someone else; never write the imported
+        // track into it. Leave the import parked so the frontend offers the
+        // user's own playlists instead.
+        let playlist = if target_open_playlist && !self.app.current_playlist_public {
+            self.app.current_playlist.clone()
+        } else {
+            None
+        };
         spawn_import_bv(&self.api, self.tx.clone(), raw, playlist);
     }
 

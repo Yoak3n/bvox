@@ -73,6 +73,7 @@ impl App {
                     // Keep the local queue (and playback) but it is no longer
                     // backed by a folder on Bilibili.
                     self.current_playlist = None;
+                    self.current_playlist_public = false;
                 }
                 self.set_status("歌单已删除", false);
             }
